@@ -1,9 +1,10 @@
 import { Entity, Column, ManyToOne, Index } from 'typeorm';
+import type { Geometry } from 'geojson';
 
 import { BaseEntity } from 'src/common/entities/base.entity';
 
 import { Grid } from './grid.entity';
-import GridElementType from '../enum';
+import { GridElementType, SpatialReferenceID } from '../enum';
 
 @Entity('grid_elements')
 @Index('idx_grid_geometry', ['geometry'], { spatial: true })
@@ -21,9 +22,9 @@ export class GridElement extends BaseEntity {
 
   @Column({
     type: 'geometry',
-    srid: 3857,
+    srid: SpatialReferenceID.WebMercator,
   })
-  geometry: object;
+  geometry: Geometry;
 
   @Column({
     type: 'jsonb',

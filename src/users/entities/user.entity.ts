@@ -1,8 +1,9 @@
 import { Entity, Column, OneToMany } from 'typeorm';
 
-import { BaseEntity } from '../../common/entities/base.entity';
-import UserRole from '../enum';
 import { Project } from 'src/projects/entities/project.entity';
+import { BaseEntity } from 'src/common/entities/base.entity';
+
+import UserRole from '../enum';
 
 @Entity('users')
 export class User extends BaseEntity {
@@ -10,7 +11,7 @@ export class User extends BaseEntity {
   username: string;
 
   @Column()
-  passwordHash: string;
+  password: string;
 
   @Column()
   email: string;

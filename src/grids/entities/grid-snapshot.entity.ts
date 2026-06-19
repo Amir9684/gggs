@@ -12,7 +12,7 @@ export class GridSnapshot extends BaseEntity {
   version: number;
 
   @Column({
-    type: 'longtext',
+    type: 'text',
   })
   snapshotData: string;
 }
