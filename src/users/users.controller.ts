@@ -10,10 +10,9 @@ import {
 } from '@nestjs/common';
 
 import { UserService } from './users.service';
-import { type CreateUserDto } from './dto/create-user.dto';
-import { type UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { GetUsersQueryDTO } from './dto/get-users-query.dto';
-import { GetUserQueryDTO } from './dto/get-user-query.dto';
 
 @Controller('users')
 export class UserController {
@@ -30,8 +29,8 @@ export class UserController {
   }
 
   @Get(':id')
-  getOne(@Param('id') id: string, @Query() queries: GetUserQueryDTO) {
-    return this.userService.getOne(id, queries);
+  getOne(@Param('id') id: string) {
+    return this.userService.getOne(id);
   }
 
   @Put(':id')

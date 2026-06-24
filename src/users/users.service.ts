@@ -6,11 +6,10 @@ import bcrypt from 'bcrypt';
 import asyncFn from 'src/common/helper/async';
 
 import { User } from './entities/user.entity';
-import type { CreateUserDto } from './dto/create-user.dto';
-import type { UpdateUserDto } from './dto/update-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { HttpStatus } from 'src/common/types';
 import { GetUsersQueryDTO } from './dto/get-users-query.dto';
-import { GetUserQueryDTO } from './dto/get-user-query.dto';
 
 @Injectable()
 export class UserService {
@@ -83,33 +82,9 @@ export class UserService {
     });
   }
 
-  getOne(id: string, queries?: GetUserQueryDTO) {
+  getOne(id: string) {
     return asyncFn(async () => {
-      const queryBuilder = this.userRepository
-        .createQueryBuilder('user')
-        .where('id = :id', { id });
-
-      if (queries) {
-        const { username, email, role } = queries;
-
-        if (username) {
-          queryBuilder.andWhere('username LIKE :username', {
-            username: `%${username}%`,
-          });
-        }
-        if (email) {
-          queryBuilder.andWhere('email LIKE :email', {
-            email: `${email}%`,
-          });
-        }
-        if (role) {
-          queryBuilder.andWhere('role = :role', {
-            role,
-          });
-        }
-      }
-
-      const user = await queryBuilder.getOne();
+      const user = await this.userRepository.findOneBy({ id });
       if (!user) {
         return {
           statusCode: HttpStatus.NOT_FOUND,
@@ -124,6 +99,18 @@ export class UserService {
         data: user,
       };
     });
+  }
+
+  findByUsername(username: string) {
+    return this.userRepository.findOneBy({ username });
+  }
+
+  findByUsernameOrEmail(username: string, email: string) {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .where('user.username = :username', { username })
+      .orWhere('user.email = :email', { email })
+      .getOne();
   }
 
   update(id: string, updateUserDto: UpdateUserDto) {

@@ -1,3 +1,4 @@
+import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
 const createUserSchema = z.object({
@@ -14,6 +15,6 @@ const createUserSchema = z.object({
     .max(16, 'رمز عبور حداکثر باید 16 کارکتر باشد'),
 });
 
-type CreateUserDto = z.infer<typeof createUserSchema>;
+class CreateUserDto extends createZodDto(createUserSchema) {}
 
-export { createUserSchema, type CreateUserDto };
+export { createUserSchema, CreateUserDto };
