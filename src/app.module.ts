@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
-import { UserModule } from './users/users.module';
-import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
-import { ZodSerializerInterceptor, ZodValidationPipe } from 'nestjs-zod';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ZodSerializerInterceptor } from 'nestjs-zod';
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 
-// import { DB_CONFIG } from './app/config';
+import { UserModule } from './users/users.module';
+
 import { HttpExceptionFilter } from './app/http-exception.filter';
+import { AuthModule } from './auth/auth.module';
+import { AppZodValidationPipe } from './app/zod-validation-pipe';
 
 @Module({
   imports: [
@@ -17,7 +19,7 @@ import { HttpExceptionFilter } from './app/http-exception.filter';
     TypeOrmModule.forRoot({
       type: process.env.DB_TYPE as 'postgres',
       host: process.env.DB_HOST,
-      port: Number(process.env.DB_PORT ?? 3306),
+      port: Number(process.env.DB_PORT ?? 5433),
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_DATABASE,
@@ -26,11 +28,13 @@ import { HttpExceptionFilter } from './app/http-exception.filter';
     }),
 
     UserModule,
+    AuthModule,
   ],
+
   providers: [
     {
       provide: APP_PIPE,
-      useClass: ZodValidationPipe,
+      useClass: AppZodValidationPipe,
     },
     {
       provide: APP_INTERCEPTOR,

@@ -10,6 +10,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { HttpStatus } from 'src/common/types';
 import { GetUsersQueryDTO } from './dto/get-users-query.dto';
+import { sanitizeUser } from 'src/common/helper/sanitize-user';
 
 @Injectable()
 export class UserService {
@@ -31,8 +32,8 @@ export class UserService {
 
       return {
         statusCode: HttpStatus.CREATED,
-        message: 'کاربر با موفقیت ایجاد شد.',
-        data: createdUser,
+        messages: 'کاربر با موفقیت ایجاد شد.',
+        data: sanitizeUser(createdUser),
       };
     });
   }
@@ -68,7 +69,7 @@ export class UserService {
       const totalPages = Math.ceil(totalCount / pageSize);
       return {
         statusCode: HttpStatus.OK,
-        message: [],
+        messages: [],
         data: {
           list,
           pagination: {
@@ -89,20 +90,44 @@ export class UserService {
         return {
           statusCode: HttpStatus.NOT_FOUND,
           data: null,
-          message: `کاربر با آیدی: ${id} یافت نشد.`,
+          messages: `کاربر با آیدی: ${id} یافت نشد.`,
         };
       }
 
       return {
         statusCode: HttpStatus.OK,
-        message: [],
+        messages: [],
         data: user,
       };
     });
   }
 
+  /**
+   * Fetches the raw `User` entity for internal use only (e.g. by `update`,
+   * which merges changes into it before saving). Explicitly opts back into
+   * selecting `password` — without it, saving this entity back would wipe
+   * the stored hash whenever the caller doesn't also supply a new password.
+   * Never return this value directly from a controller.
+   */
+  private findEntityById(id: string) {
+    return this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.id = :id', { id })
+      .getOne();
+  }
+
+  /**
+   * Used only for credential verification during login — explicitly opts
+   * back into selecting `password`, which is excluded by default
+   * (`select: false` on the entity) from every other read.
+   */
   findByUsername(username: string) {
-    return this.userRepository.findOneBy({ username });
+    return this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.username = :username', { username })
+      .getOne();
   }
 
   findByUsernameOrEmail(username: string, email: string) {
@@ -118,14 +143,18 @@ export class UserService {
       if (id !== updateUserDto.id) {
         return {
           statusCode: HttpStatus.BAD_REQUEST,
-          message: 'عدم تطابق آیدی',
+          messages: 'عدم تطابق آیدی',
           data: null,
         };
       }
 
-      const result = await this.getOne(id);
-      if (!result.data) {
-        return result;
+      const existingUser = await this.findEntityById(id);
+      if (!existingUser) {
+        return {
+          statusCode: HttpStatus.NOT_FOUND,
+          data: null,
+          messages: `کاربر با آیدی: ${id} یافت نشد.`,
+        };
       }
       if (updateUserDto.password) {
         const salt = await bcrypt.genSalt(10);
@@ -135,42 +164,42 @@ export class UserService {
         );
       }
 
-      const user = Object.assign(result.data, updateUserDto);
+      const user = Object.assign(existingUser, updateUserDto);
 
       const updatedUser = await this.userRepository.save(user);
 
       return {
         statusCode: HttpStatus.OK,
-        message: 'اطلاعات کاربر با موفیت بروزرسانی شد.',
-        data: updatedUser,
+        messages: 'اطلاعات کاربر با موفیت بروزرسانی شد.',
+        data: sanitizeUser(updatedUser),
       };
     });
   }
 
   delete(id: string) {
     return asyncFn(async () => {
-      const result = await this.getOne(id);
-      if (!result.data) {
+      const existingUser = await this.findEntityById(id);
+      if (!existingUser) {
         return {
           statusCode: HttpStatus.NOT_FOUND,
-          message: `کاربر با آیدی: ${id} یافت نشد`,
+          messages: `کاربر با آیدی: ${id} یافت نشد`,
           data: null,
         };
       }
 
-      const deleteResult = await this.userRepository.delete(result.data.id);
+      const deleteResult = await this.userRepository.delete(existingUser.id);
       if (!deleteResult.affected) {
         return {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           data: null,
-          message: ['مشکلی در عملیات حذف به وجود آمده است.'],
+          messages: ['مشکلی در عملیات حذف به وجود آمده است.'],
         };
       }
 
       return {
         statusCode: HttpStatus.OK,
         data: { id },
-        message: 'کاربر با موقیت حذف شد.',
+        messages: 'کاربر با موقیت حذف شد.',
       };
     });
   }

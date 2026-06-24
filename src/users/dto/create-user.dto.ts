@@ -1,4 +1,5 @@
 import { createZodDto } from 'nestjs-zod';
+import { HttpStatus } from 'src/common/types';
 import { z } from 'zod';
 
 const createUserSchema = z.object({
@@ -7,7 +8,7 @@ const createUserSchema = z.object({
     .trim()
     .min(1, 'نام کاربری الزامیست'),
 
-  email: z.string('ایمیل الزامیست').trim().email('ایمیل نامعتبر است'),
+  email: z.email('ایمیل نامعتبر است'),
 
   password: z
     .string('رمز عبور الزامیست')

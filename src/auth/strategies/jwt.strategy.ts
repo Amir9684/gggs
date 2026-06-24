@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+
 import UserRole from 'src/users/enum';
 import { UserService } from 'src/users/users.service';
 
@@ -19,9 +20,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: { id: string; username: string; role: UserRole }) {
-    const user = await this.usersService.getOne(payload.id);
+    const result = await this.usersService.getOne(payload.id);
 
-    if (!user) {
+    if (!result.data) {
       throw new UnauthorizedException('UnAuthorized.');
     }
 

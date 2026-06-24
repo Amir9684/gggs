@@ -20,7 +20,7 @@ interface ICallBackReturn<T> {
   /**
    *  the successMessage you wanna sent to clients
    */
-  message: string | string[];
+  messages: string | string[];
 }
 
 /**
@@ -31,8 +31,8 @@ async function asyncFn<T>(
   options?: IOptions,
 ): Promise<IResponse<T | null>> {
   try {
-    const { data, message: resMessage, statusCode } = await callback();
-    const message = resMessage
+    const { data, messages: resMessage, statusCode } = await callback();
+    const messages = resMessage
       ? typeof resMessage === 'string'
         ? [resMessage]
         : resMessage
@@ -47,7 +47,7 @@ async function asyncFn<T>(
 
     return {
       statusCode,
-      message,
+      messages,
       data,
       error,
     };
@@ -55,7 +55,7 @@ async function asyncFn<T>(
     console.error('Internal Server Error:', error); // Use console.error for errors
     return {
       statusCode: 500,
-      message: ['مشکلی پیش آمده بعداً تلاش کنید.'],
+      messages: ['مشکلی پیش آمده بعداً تلاش کنید.'],
       data: null,
       error: HttpStatusLabel[500],
     };

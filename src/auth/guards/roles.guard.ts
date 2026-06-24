@@ -1,15 +1,12 @@
-import {
-  Injectable,
-  CanActivate,
-  type ExecutionContext,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import UserRole from 'src/users/enum';
+import { TAuthenticatedRequestType } from 'src/auth/types/authenticated-request.type';
+import { createHttpException } from 'src/common/helper/create-http-exception';
 
-import { AuthenticatedRequest } from 'src/auth/types/authenticated-request.type';
 import { ROLES_KEY } from '../constants';
+import { HttpStatus } from 'src/common/types';
 /**
  * Authorizes a request based on the roles set via `@Roles(...)`.
  * Must run after `JwtAuthGuard` so `request.user.role` is available.
@@ -34,10 +31,15 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const { user } = context
+      .switchToHttp()
+      .getRequest<TAuthenticatedRequestType>();
 
     if (!user || !requiredRoles.includes(user.role)) {
-      throw new ForbiddenException('شما به این بخش دسترسی ندارید.');
+      throw createHttpException(
+        HttpStatus.FORBIDDEN,
+        'شما به این بخش دسترسی ندارید.',
+      );
     }
 
     return true;

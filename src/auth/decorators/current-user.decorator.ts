@@ -1,8 +1,8 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 
 import {
-  AuthenticatedRequest,
-  IAuthenticatedUser,
+  TAuthenticatedRequestType,
+  TAuthenticatedUserType,
 } from '../types/authenticated-request.type';
 /**
  * Extracts the authenticated user attached to the request by `JwtStrategy`.
@@ -10,11 +10,11 @@ import {
  * @example
  * @UseGuards(JwtAuthGuard)
  * @Get('me')
- * me(@CurrentUser() user: IAuthenticatedUser) {}
+ * me(@CurrentUser() user: TAuthenticatedUserType) {}
  */
 export const CurrentUser = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): IAuthenticatedUser => {
-    const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
+  (_data: unknown, ctx: ExecutionContext): TAuthenticatedUserType => {
+    const request = ctx.switchToHttp().getRequest<TAuthenticatedRequestType>();
     return request.user;
   },
 );

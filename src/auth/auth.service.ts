@@ -9,12 +9,9 @@ import { User } from 'src/users/entities/user.entity';
 
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
-
-interface IJwtPayload {
-  id: string;
-  username: string;
-  role: User['role'];
-}
+import TJwtPayloadType from './types/jwt-payload';
+import { TAuthenticatedUserType } from './types/authenticated-request.type';
+import { sanitizeUser } from 'src/common/helper/sanitize-user';
 
 @Injectable()
 export class AuthService {
@@ -46,8 +43,8 @@ export class AuthService {
     return user;
   }
 
-  private signToken(user: User): string {
-    const payload: IJwtPayload = {
+  private signToken(user: Pick<User, 'id' | 'username' | 'role'>): string {
+    const payload: TJwtPayloadType = {
       id: user.id,
       username: user.username,
       role: user.role,
@@ -66,7 +63,7 @@ export class AuthService {
       if (!user) {
         return {
           statusCode: HttpStatus.UNAUTHORIZED,
-          message: 'نام کاربری یا رمز عبور اشتباه است.',
+          messages: 'نام کاربری یا رمز عبور اشتباه است.',
           data: null,
         };
       }
@@ -77,7 +74,7 @@ export class AuthService {
 
       return {
         statusCode: HttpStatus.OK,
-        message: 'ورود با موفقیت انجام شد.',
+        messages: 'ورود با موفقیت انجام شد.',
         data: { accessToken, user: safeUser },
       };
     });
@@ -94,7 +91,7 @@ export class AuthService {
         return {
           statusCode: HttpStatus.BAD_REQUEST,
           data: null,
-          message: 'نام کاربری یا ایمیل در سیستم ثبت شده است',
+          messages: 'نام کاربری یا ایمیل در سیستم ثبت شده است',
         };
       }
 
@@ -103,18 +100,43 @@ export class AuthService {
         return {
           statusCode: HttpStatus.BAD_REQUEST,
           data: null,
-          message: 'نام کاربری یا ایمیل در سیستم ثبت شده است',
+          messages: 'نام کاربری یا ایمیل در سیستم ثبت شده است',
         };
       }
 
       const accessToken = this.signToken(createResult.data);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, ...safeUser } = createResult.data;
 
       return {
         statusCode: HttpStatus.CREATED,
-        data: { accessToken, user: safeUser },
-        message: 'ثبت‌نام با موفقیت انجام شد.',
+        data: { accessToken, user: createResult.data },
+        messages: 'ثبت‌نام با موفقیت انجام شد.',
+      };
+    });
+  }
+
+  /**
+   * Returns the full, current user record for whoever the JWT identifies.
+   * The token payload itself only carries `{ id, username, role }`, so this
+   * re-fetches from the DB to get the rest of the user's fields and to make
+   * sure the account still exists (e.g. wasn't deleted after the token was
+   * issued).
+   */
+  me(user: TAuthenticatedUserType) {
+    return asyncFn(async () => {
+      const foundUser = await this.userService.findByUsername(user.username);
+
+      if (!foundUser) {
+        return {
+          statusCode: HttpStatus.UNAUTHORIZED,
+          data: null,
+          messages: 'حساب کاربری شما یافت نشد.',
+        };
+      }
+
+      return {
+        statusCode: HttpStatus.OK,
+        messages: [],
+        data: sanitizeUser(foundUser),
       };
     });
   }

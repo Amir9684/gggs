@@ -30,7 +30,7 @@ type StatusCodeLabel = (typeof HttpStatusLabel)[HttpStatus];
 
 interface IResponse<T> {
   statusCode: HttpStatus;
-  message: string[];
+  messages: string[];
   data: T;
   error: StatusCodeLabel | null;
 }

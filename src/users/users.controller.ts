@@ -13,7 +13,16 @@ import { UserService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { GetUsersQueryDTO } from './dto/get-users-query.dto';
+import UserRole from './enum';
 
+import { Auth } from 'src/auth/decorators/auth.decorator';
+
+/**
+ * Every route here manages user accounts directly (create/list/read/update/
+ * delete any user) — restricted to authenticated admins only.
+ * `JwtAuthGuard` must run before `RolesGuard` so `request.user` is populated.
+ */
+@Auth(UserRole.ADMIN)
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}

@@ -2,13 +2,13 @@ import { Request } from 'express';
 
 import UserRole from 'src/users/enum';
 
-interface IAuthenticatedUser {
+interface TAuthenticatedUserType {
   id: string;
   username: string;
   role: UserRole;
 }
-interface AuthenticatedRequest extends Request {
-  user: IAuthenticatedUser;
-}
+type TAuthenticatedRequestType = Request & {
+  user: TAuthenticatedUserType;
+};
 
-export type { IAuthenticatedUser, AuthenticatedRequest };
+export type { TAuthenticatedUserType, TAuthenticatedRequestType };
