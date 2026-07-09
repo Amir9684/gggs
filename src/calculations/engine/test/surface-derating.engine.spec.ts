@@ -26,13 +26,20 @@ describe('computeSurfaceDeratingFactor', () => {
     expect(cs).toBeLessThan(1);
   });
 
-  it('Cs decreases (more derating) as surface layer thickness increases, when rhos > rho', () => {
+  it('Cs increases toward 1 (less derating) as surface layer thickness increases, when rhos > rho', () => {
+    // As hs -> 0, Cs -> rho/rhos (the thin layer barely differs from bare
+    // earth, so the touch-voltage formula gets little credit for it). As
+    // hs -> infinity, Cs -> 1 (thick enough that a person's feet only
+    // "see" the surface material, so the formula gives full credit for
+    // rhos). So for rhos > rho, Cs *rises* monotonically toward 1 as the
+    // layer gets thicker — the opposite of what a smaller test tolerance
+    // might suggest from the word "derating" alone.
     const rho = 100;
     const rhos = 3000;
     const thin = computeSurfaceDeratingFactor(rho, rhos, 0.05);
     const thick = computeSurfaceDeratingFactor(rho, rhos, 0.3);
 
-    expect(thick.cs).toBeLessThan(thin.cs);
+    expect(thick.cs).toBeGreaterThan(thin.cs);
   });
 
   it('throws for negative thickness', () => {

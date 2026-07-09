@@ -26,8 +26,12 @@ export class SoilModelsService {
    * to the requesting user via `ProjectsService.findOwnedOrAdmin`. Returns
    * `null` if the model doesn't exist or its project isn't owned by the
    * requester (admins bypass the ownership check).
+   *
+   * Exposed (not `private`) because `CalculationsService` needs the same
+   * check before pulling a soil model's layers into an evaluation run —
+   * mirrors `GridsService.findOwnedOrAdmin`.
    */
-  private async findOwnedOrAdmin(
+  async findOwnedOrAdmin(
     id: string,
     user: TAuthenticatedUserType,
   ): Promise<SoilModel | null> {

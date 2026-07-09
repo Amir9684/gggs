@@ -16,6 +16,22 @@ describe('computeEffectiveStepLength', () => {
 });
 
 describe('computeStepVoltage', () => {
+  it('matches the IEEE 80-2013 Annex B permissible step voltage (Estep70 = 2696.097V)', () => {
+    // Same rho_s=2500, hs=0.102 (Cs=0.743), ts=0.5s, 70kg as Annex B.
+    const result = computeStepVoltage(
+      400,
+      0.4,
+      2.272,
+      1908,
+      1000,
+      0.7428571428571429,
+      2500,
+      0.5,
+      70,
+    );
+    expect(result.permissibleStepVoltage).toBeCloseTo(2696.097, 1);
+  });
+
   it('computes Es = rho*Ks*Ki*IG / Ls', () => {
     const rho = 400;
     const ks = 0.3;

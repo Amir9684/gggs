@@ -5,6 +5,10 @@ import { ZodSerializerInterceptor } from 'nestjs-zod';
 import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 
 import { UserModule } from './users/users.module';
+import { ProjectsModule } from './projects/projects.module';
+import { GridsModule } from './grids/grids.module';
+import { SoilModule } from './soil/soil.module';
+import { CalculationsModule } from './calculations/calculations.module';
 
 import { HttpExceptionFilter } from './app/http-exception.filter';
 import { AuthModule } from './auth/auth.module';
@@ -29,6 +33,10 @@ import { AppZodValidationPipe } from './app/zod-validation-pipe';
 
     UserModule,
     AuthModule,
+    ProjectsModule,
+    GridsModule,
+    SoilModule,
+    CalculationsModule,
   ],
 
   providers: [
