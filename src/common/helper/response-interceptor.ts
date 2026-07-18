@@ -17,6 +17,15 @@ export class ResponseInterceptor<T> implements NestInterceptor {
 
     return next.handle().pipe(
       map((result: IResponse<T>) => {
+        // Endpoints that stream a raw file (e.g. report downloads) handle
+        // the response themselves via `@Res({ passthrough: false })` and
+        // return nothing in the standard `IResponse` envelope — don't try
+        // to re-wrap those, or re-set headers/status after they've
+        // already been sent.
+        if (result === undefined || res.headersSent) {
+          return result;
+        }
+
         res.status(result.statusCode);
         return result;
       }),

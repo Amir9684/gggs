@@ -9,6 +9,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { GridsModule } from './grids/grids.module';
 import { SoilModule } from './soil/soil.module';
 import { CalculationsModule } from './calculations/calculations.module';
+import { ReportsModule } from './reports/reports.module';
 
 import { HttpExceptionFilter } from './app/http-exception.filter';
 import { AuthModule } from './auth/auth.module';
@@ -37,6 +38,7 @@ import { AppZodValidationPipe } from './app/zod-validation-pipe';
     GridsModule,
     SoilModule,
     CalculationsModule,
+    ReportsModule,
   ],
 
   providers: [
