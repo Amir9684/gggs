@@ -1,9 +1,14 @@
 import UserRole from '../enum';
 
-export class GetUsersQueryDTO {
-  username?: string;
-  email?: string;
-  role?: UserRole;
-  pageNumber?: number;
-  pageSize?: number;
-}
+import { createZodDto } from 'nestjs-zod';
+import z from 'zod';
+
+const getUsersQuerySchema = z.object({
+  username: z.string().optional(),
+  email: z.email().optional(),
+  role: z.enum(UserRole).optional(),
+  pageNumber: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().default(50),
+});
+
+export class GetUsersQueryDTO extends createZodDto(getUsersQuerySchema) {}

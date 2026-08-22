@@ -1,5 +1,4 @@
 import { createZodDto } from 'nestjs-zod';
-import { HttpStatus } from 'src/common/types';
 import { z } from 'zod';
 
 const createUserSchema = z.object({
