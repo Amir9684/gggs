@@ -6,6 +6,7 @@ import bcrypt from 'bcrypt';
 import asyncFn from 'src/common/helper/async';
 
 import { User } from './entities/user.entity';
+import { Project } from 'src/projects/entities/project.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { HttpStatus } from 'src/common/types';
@@ -18,8 +19,58 @@ export class UserService {
     @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
 
+  /**
+   * Checks whether `username`/`email` already belong to a *different*
+   * user (`excludeId`) before a create/update is allowed to hit the DB.
+   * `username` has a unique DB constraint, so without this guard a
+   * duplicate would surface as a raw `QueryFailedError` from Postgres —
+   * caught by `asyncFn`, but only as a generic 500 rather than a proper
+   * "این نام کاربری قبلاً ثبت شده" 400 response. Only the fields that are
+   * actually provided are checked, so a partial update that doesn't touch
+   * `username`/`email` never runs this query.
+   */
+  private async findConflictingUser(
+    username: string | undefined,
+    email: string | undefined,
+    excludeId?: string,
+  ): Promise<User | null> {
+    if (!username && !email) {
+      return null;
+    }
+
+    const queryBuilder = this.userRepository.createQueryBuilder('user');
+
+    if (username && email) {
+      queryBuilder
+        .where('user.username = :username', { username })
+        .orWhere('user.email = :email', { email });
+    } else if (username) {
+      queryBuilder.where('user.username = :username', { username });
+    } else {
+      queryBuilder.where('user.email = :email', { email });
+    }
+
+    if (excludeId) {
+      queryBuilder.andWhere('user.id != :excludeId', { excludeId });
+    }
+
+    return queryBuilder.getOne();
+  }
+
   create(createUserDto: CreateUserDto) {
     return asyncFn(async () => {
+      const conflictingUser = await this.findConflictingUser(
+        createUserDto.username,
+        createUserDto.email,
+      );
+      if (conflictingUser) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: 'نام کاربری یا ایمیل در سیستم ثبت شده است.',
+        };
+      }
+
       if (createUserDto.password) {
         const salt = await bcrypt.genSalt(10);
         createUserDto.password = await bcrypt.hash(
@@ -43,11 +94,6 @@ export class UserService {
       const queryBuilder = this.userRepository.createQueryBuilder('user');
       const { username, email, role, pageNumber = 1, pageSize = 50 } = queries;
 
-      if (username) {
-        queryBuilder.where('username LIKE :username', {
-          username: `%${username}%`,
-        });
-      }
       if (username) {
         queryBuilder.where('username LIKE :username', {
           username: `%${username}%`,
@@ -156,6 +202,20 @@ export class UserService {
           messages: `کاربر با آیدی: ${id} یافت نشد.`,
         };
       }
+
+      const conflictingUser = await this.findConflictingUser(
+        updateUserDto.username,
+        updateUserDto.email,
+        id,
+      );
+      if (conflictingUser) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: 'نام کاربری یا ایمیل در سیستم ثبت شده است.',
+        };
+      }
+
       if (updateUserDto.password) {
         const salt = await bcrypt.genSalt(10);
         updateUserDto.password = await bcrypt.hash(
@@ -184,6 +244,21 @@ export class UserService {
           statusCode: HttpStatus.NOT_FOUND,
           messages: `کاربر با آیدی: ${id} یافت نشد`,
           data: null,
+        };
+      }
+
+      // `Project.owner` has no `onDelete` cascade, so deleting a user who
+      // still owns projects would otherwise fail with a raw FK-violation
+      // error from Postgres. Guard it explicitly with a clear message.
+      const ownedProjectsCount = await this.userRepository.manager
+        .getRepository(Project)
+        .count({ where: { owner: { id: existingUser.id } } });
+      if (ownedProjectsCount > 0) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages:
+            'این کاربر دارای پروژه‌های فعال است. ابتدا پروژه‌های او را حذف یا منتقل کنید.',
         };
       }
 

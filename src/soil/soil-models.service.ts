@@ -9,6 +9,7 @@ import { ProjectsService } from 'src/projects/projects.service';
 import UserRole from 'src/users/enum';
 
 import { SoilModel } from './entities/soil-model.entity';
+import { CalculationCase } from 'src/calculations/entities/calculation-case.entity';
 import { CreateSoilModelDto } from './dto/create-soil-model.dto';
 import { UpdateSoilModelDto } from './dto/update-soil-model.dto';
 import { GetSoilModelsQueryDTO } from './dto/get-soil-models-query.dto';
@@ -223,6 +224,22 @@ export class SoilModelsService {
           statusCode: HttpStatus.NOT_FOUND,
           messages: `مدل خاک با آیدی: ${id} یافت نشد.`,
           data: null,
+        };
+      }
+
+      // `CalculationCase.soilModel` has no `onDelete` cascade, so deleting
+      // a soil model that's still referenced by a case would otherwise
+      // fail with a raw FK-violation error from Postgres. Block it
+      // explicitly with a clear message rather than letting the DB throw.
+      const calculationCaseCount = await this.soilModelRepository.manager
+        .getRepository(CalculationCase)
+        .count({ where: { soilModel: { id: existingSoilModel.id } } });
+      if (calculationCaseCount > 0) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages:
+            'این مدل خاک در یک یا چند کیس محاسباتی استفاده شده است. ابتدا آن‌ها را حذف کنید.',
         };
       }
 

@@ -8,6 +8,10 @@ import UserRole from 'src/users/enum';
 import { TAuthenticatedUserType } from 'src/auth/types/authenticated-request.type';
 
 import { Project } from './entities/project.entity';
+import { Grid } from 'src/grids/entities/grid.entity';
+import { SoilModel } from 'src/soil/entities/soil-model.entity';
+import { CalculationCase } from 'src/calculations/entities/calculation-case.entity';
+import { Report } from 'src/reports/entities/report.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { GetProjectsQueryDTO } from './dto/get-projects-query.dto';
@@ -177,6 +181,39 @@ export class ProjectsService {
           statusCode: HttpStatus.NOT_FOUND,
           messages: `پروژه با آیدی: ${id} یافت نشد.`,
           data: null,
+        };
+      }
+
+      // Grid, SoilModel, CalculationCase and Report all point at `Project`
+      // via a plain `@ManyToOne` with no `onDelete` cascade configured, so
+      // deleting a project that still has any of these would otherwise
+      // fail with a raw FK-violation error from Postgres (caught by
+      // `asyncFn` only as a generic 500). Guard it explicitly up front so
+      // the caller gets a clear, actionable message instead.
+      const manager = this.projectRepository.manager;
+      const [gridCount, soilModelCount, calculationCaseCount, reportCount] =
+        await Promise.all([
+          manager.getRepository(Grid).count({ where: { project: { id } } }),
+          manager
+            .getRepository(SoilModel)
+            .count({ where: { project: { id } } }),
+          manager
+            .getRepository(CalculationCase)
+            .count({ where: { project: { id } } }),
+          manager.getRepository(Report).count({ where: { project: { id } } }),
+        ]);
+
+      if (
+        gridCount > 0 ||
+        soilModelCount > 0 ||
+        calculationCaseCount > 0 ||
+        reportCount > 0
+      ) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages:
+            'این پروژه دارای شبکه، مدل خاک، کیس محاسباتی یا گزارش فعال است. ابتدا آن‌ها را حذف کنید.',
         };
       }
 

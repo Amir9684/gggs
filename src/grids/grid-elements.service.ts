@@ -334,9 +334,48 @@ export class GridElementsService {
         };
       }
 
-      const restoredElementsData = JSON.parse(
-        snapshot.snapshotData,
-      ) as GridElement[];
+      // `snapshotData` is server-generated JSON stored as free-form `text`,
+      // but that doesn't guarantee it's still well-formed or shaped like
+      // `GridElement[]` by the time it's restored (e.g. a corrupted row,
+      // or a schema change since the snapshot was taken). Parse and
+      // validate it explicitly with a clear message instead of letting a
+      // malformed row fall through to `asyncFn`'s generic 500, or letting
+      // `.map` run against something that isn't actually an array.
+      let parsedSnapshotData: unknown;
+      try {
+        parsedSnapshotData = JSON.parse(snapshot.snapshotData);
+      } catch {
+        return {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          data: null,
+          messages: 'اطلاعات این نسخه خراب است و قابل بازیابی نیست.',
+        };
+      }
+
+      if (!Array.isArray(parsedSnapshotData)) {
+        return {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          data: null,
+          messages: 'اطلاعات این نسخه خراب است و قابل بازیابی نیست.',
+        };
+      }
+
+      const isValidElementShape = parsedSnapshotData.every(
+        (element): element is GridElement =>
+          typeof element === 'object' &&
+          element !== null &&
+          'type' in element &&
+          'geometry' in element,
+      );
+      if (!isValidElementShape) {
+        return {
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          data: null,
+          messages: 'اطلاعات این نسخه خراب است و قابل بازیابی نیست.',
+        };
+      }
+
+      const restoredElementsData = parsedSnapshotData;
 
       const restoredElements =
         await this.gridElementRepository.manager.transaction(

@@ -9,6 +9,8 @@ import { ProjectsService } from 'src/projects/projects.service';
 import UserRole from 'src/users/enum';
 
 import { Grid } from './entities/grid.entity';
+import { GridSnapshot } from './entities/grid-snapshot.entity';
+import { CalculationCase } from 'src/calculations/entities/calculation-case.entity';
 import { CreateGridDto } from './dto/create-grid.dto';
 import { UpdateGridDto } from './dto/update-grid.dto';
 import { GetGridsQueryDTO } from './dto/get-grids-query.dto';
@@ -197,7 +199,34 @@ export class GridsService {
         };
       }
 
-      const deleteResult = await this.gridRepository.delete(existingGrid.id);
+      // `CalculationCase.grid` has no `onDelete` cascade, so deleting a
+      // grid that's still referenced by a case would otherwise fail with
+      // a raw FK-violation error from Postgres. Block it explicitly with
+      // a clear message rather than letting the DB throw.
+      const manager = this.gridRepository.manager;
+      const calculationCaseCount = await manager
+        .getRepository(CalculationCase)
+        .count({ where: { grid: { id: existingGrid.id } } });
+      if (calculationCaseCount > 0) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages:
+            'این شبکه در یک یا چند کیس محاسباتی استفاده شده است. ابتدا آن‌ها را حذف کنید.',
+        };
+      }
+
+      // `GridSnapshot.grid` also has no `onDelete` cascade (unlike
+      // `GridElement`, which is `CASCADE` at the DB level). Snapshots are
+      // just point-in-time history of this grid's elements with no value
+      // once the grid itself is gone, so they're removed alongside it in
+      // the same transaction rather than blocking the delete.
+      const deleteResult = await manager.transaction(async (trxManager) => {
+        await trxManager.delete(GridSnapshot, {
+          grid: { id: existingGrid.id },
+        });
+        return trxManager.delete(Grid, { id: existingGrid.id });
+      });
       if (!deleteResult.affected) {
         return {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,

@@ -19,6 +19,7 @@ import { CalculationResult } from './entities/calculation-result.entity';
 import { StepVoltageMap } from './entities/step-voltage-map.entity';
 import { TouchVoltageMap } from './entities/touch-voltage-map.entity';
 import { VoltageProfile } from './entities/voltage-profile.entity';
+import { Report } from 'src/reports/entities/report.entity';
 
 import { CreateCalculationCaseDto } from './dto/create-calculation-case.dto';
 import { UpdateCalculationCaseDto } from './dto/update-calculation-case.dto';
@@ -325,6 +326,32 @@ export class CalculationsService {
           messages: `کیس محاسباتی با آیدی: ${id} یافت نشد.`,
           data: null,
         };
+      }
+
+      // `Report.result` has no `onDelete` cascade, so deleting a
+      // `CalculationResult` that a report still points at would otherwise
+      // fail with a raw FK-violation error from Postgres. Block the whole
+      // case delete up front with a clear message rather than letting the
+      // DB throw partway through the transaction below.
+      const existingResultIds = (
+        await this.calculationResultRepository.find({
+          where: { calculationCase: { id } },
+          select: { id: true },
+        })
+      ).map((r) => r.id);
+
+      if (existingResultIds.length > 0) {
+        const reportCount = await this.calculationCaseRepository.manager
+          .getRepository(Report)
+          .count({ where: { result: { id: In(existingResultIds) } } });
+        if (reportCount > 0) {
+          return {
+            statusCode: HttpStatus.BAD_REQUEST,
+            data: null,
+            messages:
+              'برای نتایج این کیس محاسباتی گزارش تولید شده است. ابتدا گزارش‌ها را حذف کنید.',
+          };
+        }
       }
 
       // No cascade is declared at the entity level for fault/settings/
