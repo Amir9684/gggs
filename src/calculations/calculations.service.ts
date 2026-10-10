@@ -24,10 +24,12 @@ import { Report } from 'src/reports/entities/report.entity';
 import { CreateCalculationCaseDto } from './dto/create-calculation-case.dto';
 import { UpdateCalculationCaseDto } from './dto/update-calculation-case.dto';
 import { GetCalculationCasesQueryDTO } from './dto/get-calculation-cases-query.dto';
+import { DesignMethod, IMPLEMENTED_DESIGN_METHODS } from './enum';
 
 import { extractGridGeometry } from './engine/grid-geometry.extractor';
 import { computeApparentResistivity } from './engine/soil-apparent-resistivity.engine';
 import { evaluateGroundingSafety } from './engine/safety-evaluation.engine';
+import { evaluateGroundingSafety1986 } from './engine/safety-evaluation-1986.engine';
 import { sampleSurfacePotential } from './engine/surface-potential-sampling.engine';
 import type { SafetyEvaluationInput } from './engine/types';
 
@@ -105,8 +107,15 @@ export class CalculationsService {
     user: TAuthenticatedUserType,
   ) {
     return asyncFn(async () => {
-      const { projectId, gridId, soilModelId, fault, settings, ...rest } =
-        createCalculationCaseDto;
+      const {
+        projectId,
+        gridId,
+        soilModelId,
+        fault,
+        settings,
+        designMethod,
+        ...rest
+      } = createCalculationCaseDto;
 
       const project = await this.projectsService.findOwnedOrAdmin(
         projectId,
@@ -150,6 +159,8 @@ export class CalculationsService {
           async (manager) => {
             const newCase = manager.create(CalculationCase, {
               ...rest,
+              designMethod: designMethod.method,
+              soilLayering: designMethod.soilLayering ?? null,
               project: { id: project.id },
               grid: { id: grid.id },
               soilModel: { id: soilModel.id },
@@ -398,9 +409,10 @@ export class CalculationsService {
    * a `CalculationCase` points at — grid dimensions + drawn `GridElement`s,
    * soil model + its `SoilLayer`s, the case's `CaseFault` and
    * `CaseSetting` — reduces them into the engine's plain-data input shape,
-   * calls `evaluateGroundingSafety` (the one orchestrator in `./engine`),
-   * and persists a new `CalculationResult` plus its surface-potential
-   * sample maps.
+   * calls `evaluateGroundingSafety` or `evaluateGroundingSafety1986`
+   * (picked by `CalculationCase.designMethod` — see `./enum` for
+   * which methods are actually implemented), and persists a new
+   * `CalculationResult` plus its surface-potential sample maps.
    *
    * Re-runnable: each call appends a new `CalculationResult` rather than
    * overwriting the previous one, so a case's result history survives
@@ -457,6 +469,17 @@ export class CalculationsService {
           statusCode: HttpStatus.BAD_REQUEST,
           data: null,
           messages: 'مدل خاک انتخاب‌شده هیچ لایه‌ای ندارد.',
+        };
+      }
+
+      // `./engine` only implements IEEE 80-2013 — see the note on
+      // `IMPLEMENTED_DESIGN_METHODS`. Refuse rather than silently running
+      // that engine under a method the user didn't actually pick.
+      if (!IMPLEMENTED_DESIGN_METHODS.includes(calculationCase.designMethod)) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: `روش طراحی «${calculationCase.designMethod}» هنوز در بک‌اند پیاده‌سازی نشده است. فعلاً فقط IEEE 80-2000 پشتیبانی می‌شود.`,
         };
       }
 
@@ -752,7 +775,10 @@ export class CalculationsService {
       // Run IEEE 80 calculation
       // ---------------------------------------------------------
 
-      const evaluation = evaluateGroundingSafety(evaluationInput);
+      const evaluation =
+        calculationCase.designMethod === DesignMethod.IEEE_80_86
+          ? evaluateGroundingSafety1986(evaluationInput)
+          : evaluateGroundingSafety(evaluationInput);
 
       // ---------------------------------------------------------
       // Generate visualization samples

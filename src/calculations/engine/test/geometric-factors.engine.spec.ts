@@ -1,4 +1,7 @@
-import { computeGeometricFactors } from '../geometric-factors.engine';
+import {
+  computeGeometricFactors,
+  stepGeometricFactor,
+} from '../geometric-factors.engine';
 import type { GridGeometrySummary } from '../types';
 
 function baseGeometry(
@@ -164,5 +167,61 @@ describe('computeGeometricFactors', () => {
     expect(() =>
       computeGeometricFactors(baseGeometry({ conductorDiameter: 0 })),
     ).toThrow();
+  });
+
+  describe('Ks domain clamp for n < 2', () => {
+    it('stepGeometricFactor: without the clamp, n < 2 would drive the third term negative', () => {
+      // Isolates the raw arithmetic the clamp guards against, independent
+      // of the function under test.
+      const n = 1.2;
+      const unclampedThirdTerm = (1 / 7) * (1 - Math.pow(0.5, n - 2));
+      expect(unclampedThirdTerm).toBeLessThan(0);
+    });
+
+    it('stepGeometricFactor stays >= 0 for n < 2 (clamped to n = 2 internally)', () => {
+      const belowTwo = stepGeometricFactor(7, 0.5, 1.2);
+      const atTwo = stepGeometricFactor(7, 0.5, 2);
+
+      // n = 1.2 should be clamped to n = 2, so the results match exactly.
+      expect(belowTwo).toBeCloseTo(atTwo, 12);
+      expect(belowTwo).toBeGreaterThanOrEqual(0);
+    });
+
+    it('stepGeometricFactor is unaffected by the clamp once n >= 2', () => {
+      const atTwo = stepGeometricFactor(7, 0.5, 2);
+      const aboveTwo = stepGeometricFactor(7, 0.5, 3);
+
+      expect(aboveTwo).not.toBeCloseTo(atTwo, 6);
+    });
+
+    it('computeGeometricFactors: a sparse/open grid whose n < 2 still returns ks >= 0', () => {
+      // perimeter = 160; totalConductorLength = 140 -> na = 2*140/160 = 1.75 < 2
+      // (an incompletely-closed grid — less conductor than a full perimeter loop).
+      const sparse = baseGeometry({
+        length: 40,
+        width: 40,
+        area: 1600,
+        totalConductorLength: 140,
+        averageSpacing: 7,
+      });
+
+      const { n, ks } = computeGeometricFactors(sparse);
+      expect(n).toBeLessThan(2);
+      expect(ks).toBeGreaterThanOrEqual(0);
+    });
+
+    it('computeGeometricFactors: n itself is reported unclamped (Ki/Kii still use the real n)', () => {
+      const sparse = baseGeometry({
+        length: 40,
+        width: 40,
+        area: 1600,
+        totalConductorLength: 140,
+        averageSpacing: 7,
+      });
+
+      const { n, ki } = computeGeometricFactors(sparse);
+      expect(n).toBeCloseTo(1.75, 6);
+      expect(ki).toBeCloseTo(0.644 + 0.148 * 1.75, 9);
+    });
   });
 });

@@ -9,8 +9,13 @@ import type { GeometricFactors, GridGeometrySummary } from './types';
  * the standard itself. `n`, the effective number of parallel conductors,
  * is derived from the grid's actual total conductor length and perimeter
  * (both taken from the drawn `GridElement`s / grid dimensions), following
- * the standard's own na/nb formula — not a literal axis-by-axis conductor
- * count, which the standard's Eq. 84–88 does not use.
+ * the standard's own na/nb formula. This IEEE 80-2013 `n` formula is
+ * genuinely different from the older IEEE Std 80-1986 edition, which
+ * used literal per-axis conductor counts instead (n = nx·ny for Km/Ki,
+ * n = max(nx, ny) for Ks/Ki) — see `geometric-factors-1986.engine.ts`,
+ * which reuses every function below except `effectiveParallelConductors`
+ * (Km, Ks, Kii, Kh are Sverak's original formulas and unchanged between
+ * the two editions).
  */
 
 /**
@@ -57,7 +62,7 @@ function effectiveParallelConductors(geometry: GridGeometrySummary): number {
  * Irregularity factor, Ki — IEEE 80-2013 Eq. 71:
  *   Ki = 0.644 + 0.148 · n
  */
-function irregularityFactor(n: number): number {
+export function irregularityFactor(n: number): number {
   return 0.644 + 0.148 * n;
 }
 
@@ -68,7 +73,7 @@ function irregularityFactor(n: number): number {
  *         or distributed throughout the grid (the more common, more
  *         conservative case, since rods help equalize potential).
  */
-function corrosionFactor(n: number, hasRods: boolean): number {
+export function corrosionFactor(n: number, hasRods: boolean): number {
   if (hasRods) return 1;
   return 1 / Math.pow(2 * n, 2 / n);
 }
@@ -77,7 +82,7 @@ function corrosionFactor(n: number, hasRods: boolean): number {
  * Grid depth correction factor, Kh — IEEE 80-2013 Eq. 64:
  *   Kh = √(1 + h/h0),  h0 = 1 m (reference depth)
  */
-function depthFactor(burialDepth: number): number {
+export function depthFactor(burialDepth: number): number {
   const h0 = 1;
   return Math.sqrt(1 + burialDepth / h0);
 }
@@ -88,7 +93,7 @@ function depthFactor(burialDepth: number): number {
  *   Km = (1 / 2π) · [ ln( D² / (16·h·d) + (D + 2h)² / (8·D·d) − h / (4d) )
  *                     + (Kii / Kh) · ln( 8 / (π·(2n − 1)) ) ]
  */
-function meshGeometricFactor(
+export function meshGeometricFactor(
   spacing: number,
   burialDepth: number,
   conductorDiameter: number,
@@ -111,21 +116,41 @@ function meshGeometricFactor(
 }
 
 /**
+ * Minimum `n` for which Ks (below) stays in its intended domain — see the
+ * comment on `stepGeometricFactor`.
+ */
+const MIN_STEP_N = 2;
+
+/**
  * Geometric spacing factor for step voltage, Ks — IEEE 80-2013 Eq. 65:
  *
  *   Ks = (1/π) · [ 1/(2h) + 1/(D + h) + (1/D)·(1 − 0.5^(n−2)) ]
+ *
+ * The third term is only ≥ 0 when n ≥ 2 — Sverak's original derivation
+ * (and every worked example in the standard) assumes at least two
+ * effective parallel conductors, which holds for any ordinary closed grid
+ * (a bare perimeter loop alone already gives n = 2). It is NOT guaranteed
+ * by `effectiveParallelConductors`/the 1986 literal-count formula for a
+ * sparse, open, or unusually shaped grid, where n can fall below 2 — in
+ * which case 0.5^(n−2) exceeds 1 and this term goes negative, which can
+ * carry through to a negative Ks and therefore a negative step voltage Es.
+ * That's outside the formula's valid range rather than a meaningful
+ * "negative voltage", so `n` is clamped to this floor for this term only —
+ * Ki/Kii/Km, which have no such restriction, still use the real, unclamped
+ * `n`.
  */
-function stepGeometricFactor(
+export function stepGeometricFactor(
   spacing: number,
   burialDepth: number,
   n: number,
 ): number {
   const D = spacing;
   const h = burialDepth;
+  const nForStep = Math.max(n, MIN_STEP_N);
 
   return (
     (1 / Math.PI) *
-    (1 / (2 * h) + 1 / (D + h) + (1 / D) * (1 - Math.pow(0.5, n - 2)))
+    (1 / (2 * h) + 1 / (D + h) + (1 / D) * (1 - Math.pow(0.5, nForStep - 2)))
   );
 }
 

@@ -1,6 +1,21 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+import { DesignMethod, SoilLayeringMethod } from '../enum';
+
+const designMethodSchema = z
+  .object({
+    method: z.enum(DesignMethod, { error: 'انتخاب روش طراحی الزامی است.' }),
+    soilLayering: z.enum(SoilLayeringMethod).optional(),
+  })
+  .refine(
+    (data) => data.method !== DesignMethod.IEEE_80_2000 || !!data.soilLayering,
+    {
+      message: 'برای روش IEEE 80-2000 انتخاب نوع لایه‌بندی خاک الزامی است.',
+      path: ['soilLayering'],
+    },
+  );
+
 const createCalculationCaseSchema = z.object({
   projectId: z.string('آیدی پروژه الزامیست'),
 
@@ -14,6 +29,8 @@ const createCalculationCaseSchema = z.object({
     .min(1, 'نام کیس محاسباتی الزامیست'),
 
   description: z.string().trim().optional().default(''),
+
+  designMethod: designMethodSchema,
 
   fault: z.object({
     faultCurrent: z

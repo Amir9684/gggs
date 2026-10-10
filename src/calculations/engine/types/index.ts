@@ -113,7 +113,7 @@ export interface GprResult {
 export interface GeometricFactors {
   /** Geometric spacing factor for mesh voltage, Km. */
   km: number;
-  /** Irregularity factor, Ki. */
+  /** Irregularity factor, Ki, as used for the mesh/touch calculation. */
   ki: number;
   /** Corrosion/depth correction factor used inside Km, Kii or Kh (per Sverak). */
   kii: number;
@@ -121,8 +121,16 @@ export interface GeometricFactors {
   kh: number;
   /** Geometric spacing factor for step voltage, Ks. */
   ks: number;
-  /** Effective number of parallel conductors, n. */
+  /** Effective number of parallel conductors used for the mesh/touch calculation, n. */
   n: number;
+  /**
+   * IEEE 80-1986 only: the step-voltage side uses a different n (and
+   * therefore a different Ki) than the mesh/touch side — see
+   * `geometric-factors-1986.engine.ts`. Undefined for the IEEE 80-2013
+   * path, which uses a single n/Ki for both.
+   */
+  nStep?: number;
+  kiStep?: number;
 }
 
 /** Output of the surface-layer derating engine. */
