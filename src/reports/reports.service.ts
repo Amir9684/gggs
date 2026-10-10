@@ -15,24 +15,21 @@ import UserRole from 'src/users/enum';
 import { CalculationResult } from 'src/calculations/entities/calculation-result.entity';
 import { CaseFault } from 'src/calculations/entities/case-fault.entity';
 import { CaseSetting } from 'src/calculations/entities/case-setting.entity';
+import { TouchVoltageMap } from 'src/calculations/entities/touch-voltage-map.entity';
+import { StepVoltageMap } from 'src/calculations/entities/step-voltage-map.entity';
+import { VoltageProfile } from 'src/calculations/entities/voltage-profile.entity';
 
 import { Report } from './entities/report.entity';
 import { GenerateReportDto } from './dto/generate-report.dto';
 import { GetReportsQueryDTO } from './dto/get-reports-query.dto';
-import { BoldReportsClient } from './bold-reports.client';
-
-const FORMAT_EXTENSIONS: Record<'PDF' | 'Word' | 'Excel', string> = {
-  PDF: 'pdf',
-  Word: 'docx',
-  Excel: 'xlsx',
-};
+import { buildReportPdf } from './pdf/report-pdf.builder';
 
 /**
- * Generates a formatted grounding-safety report for a `CalculationResult`
- * by handing its data to the published Bold Reports .rdl template (see
- * `BoldReportsClient`) and stores the exported file on disk. A `Report`
- * row is the record of "this file was generated for this result" — the
- * file itself lives under `REPORTS_STORAGE_DIR`, addressed by `filePath`.
+ * Generates a PDF grounding-safety report for a `CalculationResult`
+ * directly with pdfkit (see `pdf/report-pdf.builder.ts`) and stores the
+ * exported file on disk. A `Report` row is the record of "this file was
+ * generated for this result" — the file itself lives under
+ * `REPORTS_STORAGE_DIR`, addressed by `filePath`.
  */
 @Injectable()
 export class ReportsService {
@@ -45,8 +42,13 @@ export class ReportsService {
     private readonly caseFaultRepository: Repository<CaseFault>,
     @InjectRepository(CaseSetting)
     private readonly caseSettingRepository: Repository<CaseSetting>,
+    @InjectRepository(TouchVoltageMap)
+    private readonly touchVoltageMapRepository: Repository<TouchVoltageMap>,
+    @InjectRepository(StepVoltageMap)
+    private readonly stepVoltageMapRepository: Repository<StepVoltageMap>,
+    @InjectRepository(VoltageProfile)
+    private readonly voltageProfileRepository: Repository<VoltageProfile>,
     private readonly projectsService: ProjectsService,
-    private readonly boldReportsClient: BoldReportsClient,
     private readonly config: ConfigService,
   ) {}
 
@@ -122,21 +124,31 @@ export class ReportsService {
       }
 
       const { calculationCase } = result;
-      const [fault, settings] = await Promise.all([
-        this.caseFaultRepository.findOne({
-          where: { calculationCase: { id: calculationCase.id } },
-          order: { createdAt: 'DESC' },
-        }),
-        this.caseSettingRepository.findOne({
-          where: { calculationCase: { id: calculationCase.id } },
-          order: { createdAt: 'DESC' },
-        }),
-      ]);
+      const [fault, settings, touchVoltageMap, stepVoltageMap, voltageProfile] =
+        await Promise.all([
+          this.caseFaultRepository.findOne({
+            where: { calculationCase: { id: calculationCase.id } },
+            order: { createdAt: 'DESC' },
+          }),
+          this.caseSettingRepository.findOne({
+            where: { calculationCase: { id: calculationCase.id } },
+            order: { createdAt: 'DESC' },
+          }),
+          this.touchVoltageMapRepository.find({
+            where: { result: { id: result.id } },
+          }),
+          this.stepVoltageMapRepository.find({
+            where: { result: { id: result.id } },
+          }),
+          this.voltageProfileRepository.find({
+            where: { result: { id: result.id } },
+          }),
+        ]);
 
-      // This is the JSON data source handed to the .rdl template's
-      // parameters/dataset — keep it flat and self-describing rather than
-      // mirroring the entity shapes 1:1, since the report layout is
-      // designed against these field names, not the DB schema.
+      // This is the data source handed to `buildReportPdf` — keep it
+      // flat and self-describing rather than mirroring the entity
+      // shapes 1:1, since the PDF layout is designed against these
+      // field names, not the DB schema.
       const reportData = {
         project: {
           name: project.name,
@@ -148,6 +160,8 @@ export class ReportsService {
           name: calculationCase.name,
           description: calculationCase.description,
         },
+        designMethod: calculationCase.designMethod,
+        soilLayering: calculationCase.soilLayering,
         grid: {
           name: calculationCase.grid.name,
           length: Number(calculationCase.grid.length),
@@ -187,24 +201,37 @@ export class ReportsService {
           permissibleStepVoltage: Number(result.permissibleStepVoltage),
           safe: result.safe,
         },
+        charts: {
+          touchVoltageMap: touchVoltageMap.map((p) => ({
+            x: Number(p.x),
+            y: Number(p.y),
+            value: Number(p.value),
+          })),
+          stepVoltageMap: stepVoltageMap.map((p) => ({
+            x: Number(p.x),
+            y: Number(p.y),
+            value: Number(p.value),
+          })),
+          voltageProfile: voltageProfile.map((p) => ({
+            x: Number(p.x),
+            y: Number(p.y),
+            voltage: Number(p.voltage),
+          })),
+        },
         generatedAt: new Date().toISOString(),
       };
 
-      const fileBuffer = await this.boldReportsClient.exportReport(
-        reportData,
-        dto.format,
-      );
+      const fileBuffer = await buildReportPdf(reportData);
 
       await fs.mkdir(this.storageDir, { recursive: true });
-      const extension = FORMAT_EXTENSIONS[dto.format];
-      const fileName = `${randomUUID()}.${extension}`;
+      const fileName = `${randomUUID()}.pdf`;
       const filePath = path.join(this.storageDir, fileName);
       await fs.writeFile(filePath, fileBuffer);
 
       const newReport = this.reportRepository.create({
         project: { id: project.id },
         result: { id: result.id },
-        name: dto.name?.trim() || `${calculationCase.name} - ${dto.format}`,
+        name: dto.name?.trim() || calculationCase.name,
         filePath,
       });
       const savedReport = await this.reportRepository.save(newReport);

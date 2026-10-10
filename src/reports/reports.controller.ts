@@ -32,7 +32,7 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   /**
-   * Renders the grounding-report .rdl template (via Bold Reports) for a
+   * Builds the grounding-report PDF (via `buildReportPdf`) for a
    * calculation result and stores the exported file.
    */
   @Post()
@@ -74,7 +74,7 @@ export class ReportsController {
   async download(
     @Param('id') id: string,
     @CurrentUser() user: TAuthenticatedUserType,
-    @Res({ passthrough: false }) res: Response,
+    @Res() res: Response,
   ) {
     const result = await this.reportsService.getFileForDownload(id, user);
 
@@ -83,9 +83,6 @@ export class ReportsController {
       return;
     }
 
-    // The DB row and the file on disk can drift out of sync (e.g. the
-    // file was manually removed, or storage was reset) — check for it
-    // explicitly rather than letting `res.download` hit a missing file.
     try {
       await fs.access(result.data.filePath);
     } catch {
@@ -98,17 +95,25 @@ export class ReportsController {
       return;
     }
 
-    // `res.download` streams the file asynchronously — without a
-    // callback, an error partway through the stream (permissions, disk
-    // I/O, the file disappearing between the `access` check above and
-    // now) would otherwise propagate as an unhandled error instead of a
-    // clean JSON response. The callback lets us respond consistently with
-    // the rest of the app's `IResponse` envelope either way.
-    res.download(
-      result.data.filePath,
-      `${result.data.name}${extname(result.data.filePath)}`,
-      (err) => {
-        if (err && !res.headersSent) {
+    const fileName = `${result.data.name}${extname(result.data.filePath)}`;
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+
+    console.log('BEFORE SEND', {
+      headers: res.getHeaders(),
+      headersSent: res.headersSent,
+    });
+
+    res.sendFile(result.data.filePath, (err) => {
+      if (err) {
+        console.error('Error sending report file:', err);
+
+        // Only send an error response if headers haven't gone out yet.
+        if (!res.headersSent) {
           res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
             statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
             messages: ['دانلود فایل گزارش با مشکل مواجه شد.'],
@@ -116,7 +121,18 @@ export class ReportsController {
             error: HttpStatusLabel[HttpStatus.INTERNAL_SERVER_ERROR],
           });
         }
-      },
-    );
+      }
+    });
+
+    res.once('finish', () => {
+      console.log('RESPONSE FINISHED', {
+        statusCode: res.statusCode,
+        headersSent: res.headersSent,
+      });
+    });
+
+    res.once('close', () => {
+      console.log('RESPONSE CLOSED');
+    });
   }
 }
