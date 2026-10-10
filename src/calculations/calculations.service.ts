@@ -31,6 +31,7 @@ import { computeApparentResistivity } from './engine/soil-apparent-resistivity.e
 import { evaluateGroundingSafety } from './engine/safety-evaluation.engine';
 import { evaluateGroundingSafety1986 } from './engine/safety-evaluation-1986.engine';
 import { sampleSurfacePotential } from './engine/surface-potential-sampling.engine';
+import { deriveDecrementFactor } from './engine/decrement-factor.engine';
 import type { SafetyEvaluationInput } from './engine/types';
 
 /**
@@ -169,6 +170,11 @@ export class CalculationsService {
 
             const newFault = manager.create(CaseFault, {
               ...fault,
+              // Df follows from the fault duration unless the caller
+              // supplied an explicit override.
+              decrementFactor:
+                fault.decrementFactor ??
+                deriveDecrementFactor(fault.faultDuration),
               calculationCase: { id: savedCase.id },
             });
             const newSetting = manager.create(CaseSetting, {

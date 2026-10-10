@@ -46,9 +46,12 @@ const createCalculationCaseSchema = z.object({
       .gt(0, 'ضریب تقسیم جریان باید بزرگ‌تر از صفر باشد')
       .lte(1, 'ضریب تقسیم جریان باید حداکثر یک باشد'),
 
+    // Optional: when omitted, the service derives it from `faultDuration`
+    // (see `engine/decrement-factor.engine.ts`). A supplied value overrides it.
     decrementFactor: z
-      .number('فاکتور کاهنده الزامیست')
-      .gte(1, 'فاکتور کاهنده باید حداقل یک باشد'),
+      .number('فاکتور کاهنده باید عدد باشد')
+      .gte(1, 'فاکتور کاهنده باید حداقل یک باشد')
+      .optional(),
 
     shockDuration: z
       .number('مدت زمان شوک الزامیست')
