@@ -26,7 +26,7 @@ export class ProjectsService {
   /**
    * Fetches a project by id, scoped to its owner unless `user` is an admin.
    * Returns `null` if the project doesn't exist *or* belongs to someone
-   * else — callers should treat both the same way (404), so a non-admin
+   * else ŌĆö callers should treat both the same way (404), so a non-admin
    * can't tell the difference between "not found" and "not yours".
    *
    * Shared by every downstream module (soil, grids, calculations, reports)
@@ -60,7 +60,7 @@ export class ProjectsService {
 
       return {
         statusCode: HttpStatus.CREATED,
-        messages: 'پروژه با موفقیت ایجاد شد.',
+        messages: '┘Šž▒┘ł┌ś┘ć ž©ž¦ ┘ģ┘ł┘ü┘é█īž¬ ž¦█īž¼ž¦ž» ž┤ž».',
         data: createdProject,
       };
     });
@@ -127,7 +127,7 @@ export class ProjectsService {
         return {
           statusCode: HttpStatus.NOT_FOUND,
           data: null,
-          messages: `پروژه با آیدی: ${id} یافت نشد.`,
+          messages: `┘Šž▒┘ł┌ś┘ć ž©ž¦ žó█īž»█ī: ${id} █īž¦┘üž¬ ┘åž┤ž».`,
         };
       }
 
@@ -148,7 +148,7 @@ export class ProjectsService {
       if (id !== updateProjectDto.id) {
         return {
           statusCode: HttpStatus.BAD_REQUEST,
-          messages: 'عدم تطابق آیدی',
+          messages: 'ž╣ž»┘ģ ž¬žĘž¦ž©┘é žó█īž»█ī',
           data: null,
         };
       }
@@ -158,7 +158,7 @@ export class ProjectsService {
         return {
           statusCode: HttpStatus.NOT_FOUND,
           data: null,
-          messages: `پروژه با آیدی: ${id} یافت نشد.`,
+          messages: `┘Šž▒┘ł┌ś┘ć ž©ž¦ žó█īž»█ī: ${id} █īž¦┘üž¬ ┘åž┤ž».`,
         };
       }
 
@@ -167,7 +167,7 @@ export class ProjectsService {
 
       return {
         statusCode: HttpStatus.OK,
-        messages: 'پروژه با موفقیت بروزرسانی شد.',
+        messages: '┘Šž▒┘ł┌ś┘ć ž©ž¦ ┘ģ┘ł┘ü┘é█īž¬ ž©ž▒┘łž▓ž▒ž│ž¦┘å█ī ž┤ž».',
         data: updatedProject,
       };
     });
@@ -179,7 +179,7 @@ export class ProjectsService {
       if (!existingProject) {
         return {
           statusCode: HttpStatus.NOT_FOUND,
-          messages: `پروژه با آیدی: ${id} یافت نشد.`,
+          messages: `┘Šž▒┘ł┌ś┘ć ž©ž¦ žó█īž»█ī: ${id} █īž¦┘üž¬ ┘åž┤ž».`,
           data: null,
         };
       }
@@ -213,7 +213,7 @@ export class ProjectsService {
           statusCode: HttpStatus.BAD_REQUEST,
           data: null,
           messages:
-            'این پروژه دارای شبکه، مدل خاک، کیس محاسباتی یا گزارش فعال است. ابتدا آن‌ها را حذف کنید.',
+            'ž¦█ī┘å ┘Šž▒┘ł┌ś┘ć ž»ž¦ž▒ž¦█ī ž┤ž©┌®┘ćžī ┘ģž»┘ä ž«ž¦┌®žī ┌®█īž│ ┘ģžŁž¦ž│ž©ž¦ž¬█ī █īž¦ ┌»ž▓ž¦ž▒ž┤ ┘üž╣ž¦┘ä ž¦ž│ž¬. ž¦ž©ž¬ž»ž¦ žó┘åŌĆī┘ćž¦ ž▒ž¦ žŁž░┘ü ┌®┘å█īž».',
         };
       }
 
@@ -224,14 +224,14 @@ export class ProjectsService {
         return {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           data: null,
-          messages: ['مشکلی در عملیات حذف به وجود آمده است.'],
+          messages: ['┘ģž┤┌®┘ä█ī ž»ž▒ ž╣┘ģ┘ä█īž¦ž¬ žŁž░┘ü ž©┘ć ┘łž¼┘łž» žó┘ģž»┘ć ž¦ž│ž¬.'],
         };
       }
 
       return {
         statusCode: HttpStatus.OK,
         data: { id },
-        messages: 'پروژه با موفقیت حذف شد.',
+        messages: '┘Šž▒┘ł┌ś┘ć ž©ž¦ ┘ģ┘ł┘ü┘é█īž¬ žŁž░┘ü ž┤ž».',
       };
     });
   }
