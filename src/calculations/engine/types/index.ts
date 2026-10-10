@@ -159,6 +159,18 @@ export interface StepVoltageResult {
   isSafe: boolean;
 }
 
+/** Permissible touch and step voltage (V) for one body weight. */
+export interface PermissibleVoltageSet {
+  touch: number;
+  step: number;
+}
+
+/** Permissible voltages for both IEEE 80 reference body weights. */
+export interface PermissibleVoltages {
+  kg50: PermissibleVoltageSet;
+  kg70: PermissibleVoltageSet;
+}
+
 /** Full output of a single safety evaluation run — maps 1:1 onto `CalculationResult`. */
 export interface SafetyEvaluationResult {
   gridResistance: number;
@@ -174,5 +186,7 @@ export interface SafetyEvaluationResult {
     effectiveGridCurrent: number;
     cs: number;
     geometricFactors: GeometricFactors;
+    /** Permissible touch/step voltages for 50 kg and 70 kg bodies. */
+    permissibleVoltages: PermissibleVoltages;
   };
 }

@@ -158,3 +158,30 @@ describe('evaluateGroundingSafety1986', () => {
     expect(() => evaluateGroundingSafety1986(noAxisCounts)).toThrow();
   });
 });
+
+describe('evaluateGroundingSafety1986: permissible voltages for 50 and 70 kg', () => {
+  it('reports both weights and the selected weight matches the verdict limits', () => {
+    const at70 = evaluateGroundingSafety1986(baseInput());
+    const at50 = evaluateGroundingSafety1986(
+      baseInput({
+        settings: { ...baseInput().settings, bodyWeight: 50 },
+      }),
+    );
+
+    const pv = at70.details.permissibleVoltages;
+    expect(pv.kg70.touch).toBeCloseTo(at70.permissibleTouchVoltage, 9);
+    expect(pv.kg70.step).toBeCloseTo(at70.permissibleStepVoltage, 9);
+    expect(pv.kg50.touch).toBeCloseTo(at50.permissibleTouchVoltage, 9);
+    expect(pv.kg50.step).toBeCloseTo(at50.permissibleStepVoltage, 9);
+  });
+
+  it('returns the same pair regardless of the selected body weight', () => {
+    const a = evaluateGroundingSafety1986(baseInput());
+    const b = evaluateGroundingSafety1986(
+      baseInput({ settings: { ...baseInput().settings, bodyWeight: 50 } }),
+    );
+    expect(a.details.permissibleVoltages).toEqual(
+      b.details.permissibleVoltages,
+    );
+  });
+});

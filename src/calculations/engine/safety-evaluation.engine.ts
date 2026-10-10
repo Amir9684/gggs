@@ -2,6 +2,7 @@ import { computeGridResistance } from './grid-resistance.engine';
 import { computeGpr } from './gpr.engine';
 import { computeGeometricFactors } from './geometric-factors.engine';
 import { computeSurfaceDeratingFactor } from './surface-derating.engine';
+import { computePermissibleVoltages } from './permissible-voltage.engine';
 import {
   computeMeshVoltage,
   computeEffectiveMeshLength,
@@ -105,6 +106,11 @@ export function evaluateGroundingSafety(
     details: {
       effectiveGridCurrent,
       cs,
+      permissibleVoltages: computePermissibleVoltages(
+        cs,
+        settings.surfaceLayerResistivity,
+        fault.shockDuration,
+      ),
       geometricFactors,
     },
   };
