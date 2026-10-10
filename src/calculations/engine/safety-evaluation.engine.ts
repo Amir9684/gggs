@@ -3,6 +3,7 @@ import { computeGpr } from './gpr.engine';
 import { computeGeometricFactors } from './geometric-factors.engine';
 import { computeSurfaceDeratingFactor } from './surface-derating.engine';
 import { computePermissibleVoltages } from './permissible-voltage.engine';
+import { summarizeGridMeshes } from './grid-mesh-summary.engine';
 import {
   evaluateDesignValidity,
   isSafeForEveryPoint,
@@ -115,6 +116,7 @@ export function evaluateGroundingSafety(
         settings.surfaceLayerResistivity,
         fault.shockDuration,
       ),
+      grid: summarizeGridMeshes(geometry),
       warnings: evaluateDesignValidity(geometry),
       safeForEveryPoint: isSafeForEveryPoint(
         gpr,

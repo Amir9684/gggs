@@ -3,6 +3,7 @@ import { Entity, Column, ManyToOne } from 'typeorm';
 import { BaseEntity } from 'src/common/entities/base.entity';
 import { decimalTransformer } from 'src/common/transformers/decimal.transformer';
 import { CalculationCase } from './calculation-case.entity';
+import type { SafetyEvaluationResult } from '../engine/types';
 
 @Entity('calculation_results')
 export class CalculationResult extends BaseEntity {
@@ -32,4 +33,13 @@ export class CalculationResult extends BaseEntity {
 
   @Column()
   safe: boolean;
+
+  /**
+   * Intermediate engine values (Cs, geometric factors, 50/70 kg limits,
+   * validity warnings, mesh counts), kept so a result reloaded later has
+   * the same details as the response from `run`. Nullable because rows
+   * saved before this column existed have none.
+   */
+  @Column('jsonb', { nullable: true })
+  details: SafetyEvaluationResult['details'] | null;
 }

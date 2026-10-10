@@ -815,6 +815,7 @@ export class CalculationsService {
               permissibleTouchVoltage: evaluation.permissibleTouchVoltage,
               permissibleStepVoltage: evaluation.permissibleStepVoltage,
               safe: evaluation.safe,
+              details: evaluation.details,
             });
 
             const result = await manager.save(CalculationResult, newResult);

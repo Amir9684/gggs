@@ -215,3 +215,14 @@ describe('evaluateGroundingSafety1986: validity warnings and safe-for-every-poin
     expect(strong.details.safeForEveryPoint).toBe(false);
   });
 });
+
+describe('evaluateGroundingSafety1986: grid summary', () => {
+  it('reports conductor and mesh counts in the details', () => {
+    const r = evaluateGroundingSafety1986(baseInput());
+    const { conductorCountAlongLength: a, conductorCountAlongWidth: b } =
+      baseInput().geometry;
+    expect(r.details.grid.conductorCountAlongLength).toBe(a);
+    expect(r.details.grid.conductorCountAlongWidth).toBe(b);
+    expect(r.details.grid.meshCount).toBe((a - 1) * (b - 1));
+  });
+});

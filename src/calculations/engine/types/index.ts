@@ -159,6 +159,18 @@ export interface StepVoltageResult {
   isSafe: boolean;
 }
 
+/** Conductor and mesh counts of the evaluated grid. */
+export interface GridMeshSummary {
+  conductorCountAlongLength: number;
+  conductorCountAlongWidth: number;
+  /** (conductors along length - 1) * (conductors along width - 1). */
+  meshCount: number;
+  averageSpacing: number;
+  totalConductorLength: number;
+  rodCount: number;
+  totalRodLength: number;
+}
+
 /** A validity-limit caution produced by `design-validity.engine`. */
 export interface DesignWarning {
   code: 'BURIAL_DEPTH_OUT_OF_RANGE' | 'CONDUCTOR_DIAMETER_TOO_LARGE';
@@ -203,5 +215,7 @@ export interface SafetyEvaluationResult {
     warnings: DesignWarning[];
     /** True when GPR <= permissible touch voltage: safe at every point. */
     safeForEveryPoint: boolean;
+    /** Conductor and mesh counts of the evaluated grid. */
+    grid: GridMeshSummary;
   };
 }
