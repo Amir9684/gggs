@@ -4,6 +4,10 @@ import { computeGeometricFactors } from './geometric-factors.engine';
 import { computeSurfaceDeratingFactor } from './surface-derating.engine';
 import { computePermissibleVoltages } from './permissible-voltage.engine';
 import {
+  evaluateDesignValidity,
+  isSafeForEveryPoint,
+} from './design-validity.engine';
+import {
   computeMeshVoltage,
   computeEffectiveMeshLength,
 } from './mesh-voltage.engine';
@@ -110,6 +114,11 @@ export function evaluateGroundingSafety(
         cs,
         settings.surfaceLayerResistivity,
         fault.shockDuration,
+      ),
+      warnings: evaluateDesignValidity(geometry),
+      safeForEveryPoint: isSafeForEveryPoint(
+        gpr,
+        meshResult.permissibleTouchVoltage,
       ),
       geometricFactors,
     },

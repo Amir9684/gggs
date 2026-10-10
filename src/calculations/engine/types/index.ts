@@ -159,6 +159,17 @@ export interface StepVoltageResult {
   isSafe: boolean;
 }
 
+/** A validity-limit caution produced by `design-validity.engine`. */
+export interface DesignWarning {
+  code: 'BURIAL_DEPTH_OUT_OF_RANGE' | 'CONDUCTOR_DIAMETER_TOO_LARGE';
+  /** Human-readable message (Persian, like the rest of the API messages). */
+  message: string;
+  /** The offending input value. */
+  value: number;
+  /** The limit that was crossed. */
+  limit: number;
+}
+
 /** Permissible touch and step voltage (V) for one body weight. */
 export interface PermissibleVoltageSet {
   touch: number;
@@ -188,5 +199,9 @@ export interface SafetyEvaluationResult {
     geometricFactors: GeometricFactors;
     /** Permissible touch/step voltages for 50 kg and 70 kg bodies. */
     permissibleVoltages: PermissibleVoltages;
+    /** Validity-limit cautions; empty when the design is inside all limits. */
+    warnings: DesignWarning[];
+    /** True when GPR <= permissible touch voltage: safe at every point. */
+    safeForEveryPoint: boolean;
   };
 }

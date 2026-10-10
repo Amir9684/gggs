@@ -185,3 +185,33 @@ describe('evaluateGroundingSafety1986: permissible voltages for 50 and 70 kg', (
     );
   });
 });
+
+describe('evaluateGroundingSafety1986: validity warnings and safe-for-every-point', () => {
+  it('has no warnings for a design inside the validity limits', () => {
+    const r = evaluateGroundingSafety1986(baseInput());
+    expect(r.details.warnings).toEqual([]);
+  });
+
+  it('warns when the burial depth is out of range', () => {
+    const r = evaluateGroundingSafety1986(
+      baseInput({ geometry: { ...baseInput().geometry, burialDepth: 3 } }),
+    );
+    expect(r.details.warnings.map((w) => w.code)).toContain(
+      'BURIAL_DEPTH_OUT_OF_RANGE',
+    );
+  });
+
+  it('flags safeForEveryPoint only when GPR does not exceed the touch limit', () => {
+    const weak = evaluateGroundingSafety1986(
+      baseInput({ fault: { ...baseInput().fault, faultCurrent: 1 } }),
+    );
+    expect(weak.gpr).toBeLessThanOrEqual(weak.permissibleTouchVoltage);
+    expect(weak.details.safeForEveryPoint).toBe(true);
+
+    const strong = evaluateGroundingSafety1986(
+      baseInput({ fault: { ...baseInput().fault, faultCurrent: 50000 } }),
+    );
+    expect(strong.gpr).toBeGreaterThan(strong.permissibleTouchVoltage);
+    expect(strong.details.safeForEveryPoint).toBe(false);
+  });
+});
