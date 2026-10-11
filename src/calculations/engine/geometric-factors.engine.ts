@@ -169,7 +169,9 @@ export function computeGeometricFactors(
 
   const n = effectiveParallelConductors(geometry);
   const ki = irregularityFactor(n);
-  const kii = corrosionFactor(n, hasPerimeterRods || geometry.rodCount > 0);
+  // Kii = 1 only for rods in the corners / on the perimeter (Windows "Rods
+  // arrangement" option 1); a few scattered rods count as option 2.
+  const kii = corrosionFactor(n, hasPerimeterRods);
   const kh = depthFactor(burialDepth);
   const km = meshGeometricFactor(
     averageSpacing,

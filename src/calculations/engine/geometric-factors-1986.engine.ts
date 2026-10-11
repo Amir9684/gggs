@@ -51,7 +51,6 @@ export function computeGeometricFactors1986(
     burialDepth,
     conductorDiameter,
     hasPerimeterRods,
-    rodCount,
     conductorCountAlongLength,
     conductorCountAlongWidth,
   } = geometry;
@@ -74,7 +73,7 @@ export function computeGeometricFactors1986(
   const kiMesh = irregularityFactor(nMesh);
   const kiStep = irregularityFactor(nStep);
 
-  const kii = corrosionFactor(nMesh, hasPerimeterRods || rodCount > 0);
+  const kii = corrosionFactor(nMesh, hasPerimeterRods);
   const kh = depthFactor(burialDepth);
 
   const km = meshGeometricFactor(

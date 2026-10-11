@@ -13,6 +13,23 @@ describe('computeEffectiveMeshLength', () => {
     const lm = computeEffectiveMeshLength(600, 100, 70, 70);
     expect(lm).toBeGreaterThan(600 + 100); // factor (1.55 + 1.22*...) > 1
   });
+
+  it('uses the length of ONE rod inside the 1.22 term (Windows ieee2000.frm: lr, not rod x lr)', () => {
+    // 8 rods of 3 m, 70 m x 70 m grid: Lm = 1540 + 24 * (1.55 + 1.22 * 3 / sqrt(2*70^2))
+    const lm = computeEffectiveMeshLength(1540, 24, 70, 70, {
+      rodCount: 8,
+      hasPerimeterRods: true,
+    });
+    expect(lm).toBeCloseTo(1578.0873, 3);
+  });
+
+  it('is Lc + LR when there are rods but none on the perimeter', () => {
+    const lm = computeEffectiveMeshLength(1540, 12, 70, 70, {
+      rodCount: 4,
+      hasPerimeterRods: false,
+    });
+    expect(lm).toBe(1552);
+  });
 });
 
 describe('computeMeshVoltage', () => {

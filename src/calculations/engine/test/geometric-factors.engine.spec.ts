@@ -128,6 +128,13 @@ describe('computeGeometricFactors', () => {
     expect(kii).toBe(1);
   });
 
+  it('Kii < 1 for a few rods when none stand on the perimeter or in the corners', () => {
+    const { kii } = computeGeometricFactors(
+      baseGeometry({ rodCount: 4, hasPerimeterRods: false }),
+    );
+    expect(kii).toBeLessThan(1);
+  });
+
   it('Kii < 1 when the grid has no ground rods', () => {
     const { kii } = computeGeometricFactors(
       baseGeometry({ rodCount: 0, hasPerimeterRods: false }),

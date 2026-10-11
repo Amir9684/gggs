@@ -30,20 +30,47 @@ function dalzielCoefficient(bodyWeightKg: number): number {
     : DALZIEL_COEFFICIENT_70KG;
 }
 
+/** Rod layout needed to pick the right effective mesh length formula. */
+export interface RodLayout {
+  /** Number of ground rods (the individual rod length is total / count). */
+  rodCount: number;
+  /** True when rods stand in the corners or along the perimeter. */
+  hasPerimeterRods: boolean;
+}
+
+/**
+ * Effective buried length for the mesh voltage, Lm (IEEE 80-2013 §16.5,
+ * and the "Rods arrangement" option of the Windows design forms):
+ *
+ *   rods in the corners / on the perimeter (and throughout the grid):
+ *     Lm = Lc + [ 1.55 + 1.22 · ( Lr / √(Lx² + Ly²) ) ] · LR
+ *   no rods, or only a few scattered rods away from the perimeter:
+ *     Lm = Lc            (no rods)
+ *     Lm = Lc + LR       (a few rods, none on the perimeter)
+ *
+ * `Lr` is the length of ONE rod and `LR` the total rod length. Without a
+ * `rods` argument a single perimeter rod is assumed.
+ */
 export function computeEffectiveMeshLength(
   totalConductorLength: number,
   totalRodLength: number,
   length: number,
   width: number,
+  rods: RodLayout = { rodCount: 1, hasPerimeterRods: true },
 ): number {
   if (totalRodLength <= 0) {
     return totalConductorLength;
   }
 
+  if (!rods.hasPerimeterRods) {
+    return totalConductorLength + totalRodLength;
+  }
+
   const diagonal = Math.sqrt(length ** 2 + width ** 2);
+  const singleRodLength = totalRodLength / Math.max(rods.rodCount, 1);
   return (
     totalConductorLength +
-    (1.55 + 1.22 * (totalRodLength / diagonal)) * totalRodLength
+    (1.55 + 1.22 * (singleRodLength / diagonal)) * totalRodLength
   );
 }
 
