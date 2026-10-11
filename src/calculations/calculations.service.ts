@@ -25,7 +25,11 @@ import { Report } from 'src/reports/entities/report.entity';
 import { CreateCalculationCaseDto } from './dto/create-calculation-case.dto';
 import { UpdateCalculationCaseDto } from './dto/update-calculation-case.dto';
 import { GetCalculationCasesQueryDTO } from './dto/get-calculation-cases-query.dto';
-import { DesignMethod, IMPLEMENTED_DESIGN_METHODS } from './enum';
+import {
+  DesignMethod,
+  IMPLEMENTED_DESIGN_METHODS,
+  SoilLayeringMethod,
+} from './enum';
 
 import { extractGridGeometry } from './engine/grid-geometry.extractor';
 import { computeApparentResistivity } from './engine/soil-apparent-resistivity.engine';
@@ -34,6 +38,7 @@ import { evaluateGroundingSafety1986 } from './engine/safety-evaluation-1986.eng
 import { sampleSurfacePotential } from './engine/surface-potential-sampling.engine';
 import { deriveDecrementFactor } from './engine/decrement-factor.engine';
 import { computeConductorSizing } from './engine/conductor-sizing.engine';
+import { summarizeGridMeshes } from './engine/grid-mesh-summary.engine';
 import type { SafetyEvaluationInput } from './engine/types';
 
 /**
@@ -175,6 +180,27 @@ export class CalculationsService {
         };
       }
 
+      // IEEE 80-86 and IEEE 80-2000 both support one- and two-layer soil;
+      // 80-86 cases created without a choice are uniform-soil cases.
+      const soilLayering =
+        designMethod.soilLayering ??
+        (designMethod.method === DesignMethod.IEEE_80_86
+          ? SoilLayeringMethod.ONE_LAYER
+          : null);
+
+      if (soilLayering === SoilLayeringMethod.TWO_LAYER) {
+        const layerCount = await this.soilLayerRepository.count({
+          where: { soilModel: { id: soilModel.id } },
+        });
+        if (layerCount !== 2) {
+          return {
+            statusCode: HttpStatus.BAD_REQUEST,
+            data: null,
+            messages: `برای خاک دولایه، مدل خاک باید دقیقاً دو لایه داشته باشد (مدل انتخاب‌شده ${layerCount} لایه دارد).`,
+          };
+        }
+      }
+
       // Conductor sizing needs the case's own fault current and duration,
       // so it is computed here, before anything is written.
       let conductorSizing: ReturnType<typeof computeConductorSizing> | null =
@@ -210,7 +236,7 @@ export class CalculationsService {
             const newCase = manager.create(CalculationCase, {
               ...rest,
               designMethod: designMethod.method,
-              soilLayering: designMethod.soilLayering ?? null,
+              soilLayering,
               project: { id: project.id },
               grid: { id: grid.id },
               soilModel: { id: soilModel.id },
@@ -568,7 +594,7 @@ export class CalculationsService {
         return {
           statusCode: HttpStatus.BAD_REQUEST,
           data: null,
-          messages: `روش طراحی «${calculationCase.designMethod}» هنوز در بک‌اند پیاده‌سازی نشده است. فعلاً فقط IEEE 80-2000 پشتیبانی می‌شود.`,
+          messages: `روش طراحی «${calculationCase.designMethod}» هنوز در بک‌اند پیاده‌سازی نشده است. فعلاً فقط IEEE 80-2000 و IEEE 80-86 پشتیبانی می‌شوند.`,
         };
       }
 
@@ -742,6 +768,42 @@ export class CalculationsService {
       }
 
       // ---------------------------------------------------------
+      // Two-layer soil: exactly two layers, upper one has a thickness
+      // ---------------------------------------------------------
+
+      const isTwoLayer =
+        calculationCase.soilLayering === SoilLayeringMethod.TWO_LAYER;
+
+      if (isTwoLayer) {
+        if (soilLayers.length !== 2) {
+          return {
+            statusCode: HttpStatus.BAD_REQUEST,
+            data: null,
+            messages: `برای خاک دولایه، مدل خاک باید دقیقاً دو لایه داشته باشد (مدل انتخاب‌شده ${soilLayers.length} لایه دارد).`,
+          };
+        }
+
+        if (soilLayers[0].thickness <= 0) {
+          return {
+            statusCode: HttpStatus.BAD_REQUEST,
+            data: null,
+            messages:
+              'برای خاک دولایه، ضخامت لایهٔ بالایی باید بزرگ‌تر از صفر باشد.',
+          };
+        }
+
+        const { meshCount } = summarizeGridMeshes(geometry);
+        if (geometry.totalRodLength > 0 && meshCount < 1) {
+          return {
+            statusCode: HttpStatus.BAD_REQUEST,
+            data: null,
+            messages:
+              'برای محاسبهٔ خاک دولایه با میله‌های زمین، شبکه باید حداقل یک مش داشته باشد.',
+          };
+        }
+      }
+
+      // ---------------------------------------------------------
       // Validate fault parameters
       // ---------------------------------------------------------
 
@@ -842,6 +904,13 @@ export class CalculationsService {
         soil: {
           surfaceResistivity,
           apparentResistivity,
+          ...(isTwoLayer && {
+            twoLayer: {
+              upperResistivity: soilLayers[0].resistivity,
+              lowerResistivity: soilLayers[1].resistivity,
+              upperThickness: soilLayers[0].thickness,
+            },
+          }),
         },
 
         fault: {

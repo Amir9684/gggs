@@ -31,7 +31,7 @@ export class CalculationCase extends BaseEntity {
   })
   designMethod: DesignMethod;
 
-  /** Only set when `designMethod === DesignMethod.IEEE_80_2000`. */
+  /** Set for the IEEE methods (80-86 defaults to ONE_LAYER); null for Galerkin. */
   @Column({
     type: 'enum',
     enum: SoilLayeringMethod,

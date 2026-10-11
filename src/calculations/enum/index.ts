@@ -10,7 +10,11 @@ enum DesignMethod {
   GALERKIN = 'GALERKIN',
 }
 
-/** Only meaningful when `designMethod === DesignMethod.IEEE_80_2000`. */
+/**
+ * Soil model type of the IEEE methods. Meaningful for
+ * `DesignMethod.IEEE_80_2000` and `DesignMethod.IEEE_80_86`; `TWO_LAYER`
+ * needs a soil model with exactly two layers.
+ */
 enum SoilLayeringMethod {
   ONE_LAYER = 'ONE_LAYER',
   TWO_LAYER = 'TWO_LAYER',
