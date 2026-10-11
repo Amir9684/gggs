@@ -61,6 +61,35 @@ export interface SoilSummary {
    * element multilayer solution.
    */
   apparentResistivity: number;
+  /**
+   * Present only for two-layer soil (`SoilLayeringMethod.TWO_LAYER`). When
+   * set, the mesh and step voltages are corrected with Cm and Cs
+   * (`two-layer-soil.engine.ts`); `apparentResistivity` is still used for
+   * the grid resistance and GPR.
+   */
+  twoLayer?: TwoLayerSoilLayers;
+}
+
+/** The two soil layers of a two-layer soil model. */
+export interface TwoLayerSoilLayers {
+  /** Upper layer resistivity, ρ1 (Ω·m). */
+  upperResistivity: number;
+  /** Lower layer resistivity, ρ2 (Ω·m). */
+  lowerResistivity: number;
+  /** Upper layer thickness, hs (m). */
+  upperThickness: number;
+}
+
+/** Two-layer soil correction of Em and Es (see `two-layer-soil.engine.ts`). */
+export interface TwoLayerSoilCorrection extends TwoLayerSoilLayers {
+  /** Exponent of the mesh correction, Xhor. */
+  xhor: number;
+  /** Exponent of the step correction, Yhor. */
+  yhor: number;
+  /** Mesh (touch) voltage correction, Cm = (ρ2/ρ1)^Xhor. */
+  meshCorrection: number;
+  /** Step voltage correction, Cs = (ρ2/ρ1)^Yhor (not the surface-layer Cs). */
+  stepCorrection: number;
 }
 
 /** Fault/case inputs (from `CaseFault`). */
