@@ -1,7 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-import { DesignMethod, SoilLayeringMethod } from '../enum';
+import { ConductorMaterial, DesignMethod, SoilLayeringMethod } from '../enum';
 
 const designMethodSchema = z
   .object({
@@ -13,6 +13,46 @@ const designMethodSchema = z
     {
       message: 'برای روش IEEE 80-2000 انتخاب نوع لایه‌بندی خاک الزامی است.',
       path: ['soilLayering'],
+    },
+  );
+
+const caseConductorSchema = z
+  .object({
+    material: z.enum(ConductorMaterial, {
+      error: 'انتخاب جنس هادی الزامیست',
+    }),
+
+    ambientTemperature: z
+      .number('دمای محیط باید عدد باشد')
+      .min(-40, 'دمای محیط نامعتبر است')
+      .max(80, 'دمای محیط نامعتبر است')
+      .default(40),
+
+    // Defaults to the material's fusing temperature.
+    allowableTemperature: z
+      .number('دمای مجاز هادی باید عدد باشد')
+      .positive('دمای مجاز هادی باید مثبت باشد')
+      .optional(),
+
+    // Defaults to `fault.faultDuration`.
+    sizingDuration: z
+      .number('مدت زمان عبور جریان باید عدد باشد')
+      .positive('مدت زمان عبور جریان باید مثبت باشد')
+      .optional(),
+
+    // A cross-section the user entered instead of a standard size.
+    crossSectionMm2: z
+      .number('سطح مقطع هادی باید عدد باشد')
+      .positive('سطح مقطع هادی باید مثبت باشد')
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.allowableTemperature === undefined ||
+      data.allowableTemperature > data.ambientTemperature,
+    {
+      message: 'دمای مجاز هادی باید بیشتر از دمای محیط باشد',
+      path: ['allowableTemperature'],
     },
   );
 
@@ -31,6 +71,9 @@ const createCalculationCaseSchema = z.object({
   description: z.string().trim().optional().default(''),
 
   designMethod: designMethodSchema,
+
+  // Optional: cases without it simply have no conductor sizing.
+  conductor: caseConductorSchema.optional(),
 
   fault: z.object({
     faultCurrent: z
@@ -83,4 +126,8 @@ class CreateCalculationCaseDto extends createZodDto(
   createCalculationCaseSchema,
 ) {}
 
-export { createCalculationCaseSchema, CreateCalculationCaseDto };
+export {
+  createCalculationCaseSchema,
+  caseConductorSchema,
+  CreateCalculationCaseDto,
+};

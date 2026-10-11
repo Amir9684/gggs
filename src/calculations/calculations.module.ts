@@ -10,6 +10,7 @@ import { SoilLayer } from 'src/soil/entities/soil-layer.entity';
 import { CalculationCase } from './entities/calculation-case.entity';
 import { CaseFault } from './entities/case-fault.entity';
 import { CaseSetting } from './entities/case-setting.entity';
+import { CaseConductor } from './entities/case-conductor.entity';
 import { CalculationResult } from './entities/calculation-result.entity';
 import { StepVoltageMap } from './entities/step-voltage-map.entity';
 import { TouchVoltageMap } from './entities/touch-voltage-map.entity';
@@ -27,6 +28,7 @@ import { ConductorsController } from './conductors.controller';
       CalculationCase,
       CaseFault,
       CaseSetting,
+      CaseConductor,
       CalculationResult,
       StepVoltageMap,
       TouchVoltageMap,

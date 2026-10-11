@@ -15,6 +15,7 @@ import UserRole from 'src/users/enum';
 import { CalculationCase } from './entities/calculation-case.entity';
 import { CaseFault } from './entities/case-fault.entity';
 import { CaseSetting } from './entities/case-setting.entity';
+import { CaseConductor } from './entities/case-conductor.entity';
 import { CalculationResult } from './entities/calculation-result.entity';
 import { StepVoltageMap } from './entities/step-voltage-map.entity';
 import { TouchVoltageMap } from './entities/touch-voltage-map.entity';
@@ -32,6 +33,7 @@ import { evaluateGroundingSafety } from './engine/safety-evaluation.engine';
 import { evaluateGroundingSafety1986 } from './engine/safety-evaluation-1986.engine';
 import { sampleSurfacePotential } from './engine/surface-potential-sampling.engine';
 import { deriveDecrementFactor } from './engine/decrement-factor.engine';
+import { computeConductorSizing } from './engine/conductor-sizing.engine';
 import type { SafetyEvaluationInput } from './engine/types';
 
 /**
@@ -53,6 +55,8 @@ export class CalculationsService {
     private readonly caseFaultRepository: Repository<CaseFault>,
     @InjectRepository(CaseSetting)
     private readonly caseSettingRepository: Repository<CaseSetting>,
+    @InjectRepository(CaseConductor)
+    private readonly caseConductorRepository: Repository<CaseConductor>,
     @InjectRepository(CalculationResult)
     private readonly calculationResultRepository: Repository<CalculationResult>,
     @InjectRepository(StepVoltageMap)
@@ -103,6 +107,25 @@ export class CalculationsService {
     return calculationCase;
   }
 
+  /**
+   * Adds `crossSectionAdequate` to a stored conductor: `true` when the
+   * cross-section the user entered is at least the computed minimum,
+   * `false` when it is smaller, and `null` when no cross-section was
+   * entered (a standard size is then chosen from `standardSizeMm2`).
+   */
+  private withAdequacy(conductor: CaseConductor | null) {
+    if (!conductor) {
+      return null;
+    }
+    return {
+      ...conductor,
+      crossSectionAdequate:
+        conductor.crossSectionMm2 === null
+          ? null
+          : conductor.crossSectionMm2 >= conductor.minimumAreaMm2,
+    };
+  }
+
   create(
     createCalculationCaseDto: CreateCalculationCaseDto,
     user: TAuthenticatedUserType,
@@ -115,6 +138,7 @@ export class CalculationsService {
         fault,
         settings,
         designMethod,
+        conductor,
         ...rest
       } = createCalculationCaseDto;
 
@@ -149,6 +173,31 @@ export class CalculationsService {
           data: null,
           messages: `مدل خاک با آیدی: ${soilModelId} یافت نشد.`,
         };
+      }
+
+      // Conductor sizing needs the case's own fault current and duration,
+      // so it is computed here, before anything is written.
+      let conductorSizing: ReturnType<typeof computeConductorSizing> | null =
+        null;
+      if (conductor) {
+        try {
+          conductorSizing = computeConductorSizing({
+            material: conductor.material,
+            faultCurrent: fault.faultCurrent,
+            duration: conductor.sizingDuration ?? fault.faultDuration,
+            ambientTemperature: conductor.ambientTemperature,
+            allowableTemperature: conductor.allowableTemperature,
+          });
+        } catch (error) {
+          return {
+            statusCode: HttpStatus.BAD_REQUEST,
+            data: null,
+            messages:
+              error instanceof Error
+                ? error.message
+                : 'محاسبهٔ سطح مقطع هادی ناموفق بود.',
+          };
+        }
       }
 
       // Case + its fault/settings are created together in one transaction:
@@ -186,7 +235,31 @@ export class CalculationsService {
               manager.save(CaseSetting, newSetting),
             ]);
 
-            return { ...savedCase, fault: savedFault, settings: savedSetting };
+            let savedConductor: CaseConductor | null = null;
+            if (conductor && conductorSizing) {
+              savedConductor = await manager.save(
+                CaseConductor,
+                manager.create(CaseConductor, {
+                  material: conductor.material,
+                  ambientTemperature: conductor.ambientTemperature,
+                  allowableTemperature: conductorSizing.allowableTemperature,
+                  sizingDuration:
+                    conductor.sizingDuration ?? fault.faultDuration,
+                  minimumAreaMm2: conductorSizing.minimumAreaMm2,
+                  minimumAreaKcmil: conductorSizing.minimumAreaKcmil,
+                  standardSizeMm2: conductorSizing.standardSizeMm2,
+                  crossSectionMm2: conductor.crossSectionMm2 ?? null,
+                  calculationCase: { id: savedCase.id },
+                }),
+              );
+            }
+
+            return {
+              ...savedCase,
+              fault: savedFault,
+              settings: savedSetting,
+              conductor: this.withAdequacy(savedConductor),
+            };
           },
         );
 
@@ -277,7 +350,7 @@ export class CalculationsService {
         };
       }
 
-      const [fault, settings] = await Promise.all([
+      const [fault, settings, conductor] = await Promise.all([
         this.caseFaultRepository.findOne({
           where: { calculationCase: { id } },
           order: { createdAt: 'DESC' },
@@ -286,12 +359,21 @@ export class CalculationsService {
           where: { calculationCase: { id } },
           order: { createdAt: 'DESC' },
         }),
+        this.caseConductorRepository.findOne({
+          where: { calculationCase: { id } },
+          order: { createdAt: 'DESC' },
+        }),
       ]);
 
       return {
         statusCode: HttpStatus.OK,
         messages: [],
-        data: { ...calculationCase, fault, settings },
+        data: {
+          ...calculationCase,
+          fault,
+          settings,
+          conductor: this.withAdequacy(conductor),
+        },
       };
     });
   }
@@ -397,6 +479,7 @@ export class CalculationsService {
           await Promise.all([
             manager.delete(CaseFault, { calculationCase: { id } }),
             manager.delete(CaseSetting, { calculationCase: { id } }),
+            manager.delete(CaseConductor, { calculationCase: { id } }),
           ]);
           await manager.delete(CalculationCase, { id });
         },
