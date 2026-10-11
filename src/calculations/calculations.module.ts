@@ -18,6 +18,8 @@ import { GprResult } from './entities/gpr-result.entity';
 
 import { CalculationsService } from './calculations.service';
 import { CalculationsController } from './calculations.controller';
+import { ConductorsService } from './conductors.service';
+import { ConductorsController } from './conductors.controller';
 
 @Module({
   imports: [
@@ -42,8 +44,8 @@ import { CalculationsController } from './calculations.controller';
     GridsModule,
     SoilModule,
   ],
-  controllers: [CalculationsController],
-  providers: [CalculationsService],
+  controllers: [CalculationsController, ConductorsController],
+  providers: [CalculationsService, ConductorsService],
   exports: [CalculationsService],
 })
 export class CalculationsModule {}
