@@ -1,9 +1,10 @@
 import { computeGridResistance } from './grid-resistance.engine';
 import { computeGpr } from './gpr.engine';
 import { computeGeometricFactors1986 } from './geometric-factors-1986.engine';
-import { computeSurfaceDeratingFactor } from './surface-derating.engine';
+import { computeSurfaceDeratingFactor1986 } from './surface-derating-1986.engine';
 import { computePermissibleVoltages } from './permissible-voltage.engine';
 import { summarizeGridMeshes } from './grid-mesh-summary.engine';
+import { resolveSoilResistivities } from './two-layer-soil.engine';
 import {
   evaluateDesignValidity,
   isSafeForEveryPoint,
@@ -40,19 +41,18 @@ import type { SafetyEvaluationInput, SafetyEvaluationResult } from './types';
  *     (Dalziel's equation): unchanged, reused from `mesh-voltage.engine.ts`
  *     / `step-voltage.engine.ts`.
  *
- *   - Cs (surface layer derating factor): the 1986 edition used a
- *     DIFFERENT, more conservative infinite-series formula than the
- *     2000/2013 closed-form Cs implemented in `surface-derating.
- *     engine.ts`. The only source found for the 1986 series' exact
- *     coefficients was OCR'd PDF math that could not be reproduced to
- *     match that same source's own worked example, so — per an explicit
- *     decision to not ship an unverified formula into a safety
- *     calculation — this function REUSES the 2000/2013 Cs as a documented
- *     approximation rather than a faithful 1986 reproduction. This makes
- *     results from this engine LESS conservative than a true 1986
- *     implementation for typical (Cs < 1, high-resistivity surface layer)
- *     cases. Replace `computeSurfaceDeratingFactor` here with a verified
- *     1986 implementation if/when one becomes available.
+ *   - Cs (surface layer derating factor): the 1986 infinite series
+ *     (`surface-derating-1986.engine.ts`), the same series the Windows
+ *     GGGS app evaluates (`calculatevoltages`, `Groundin.bas`). It is more
+ *     conservative than the 2000/2013 closed-form Cs for a resistive
+ *     surface layer on low-resistivity soil.
+ *
+ *   - Two-layer soil: Em and Es are corrected with Cm and Cs
+ *     (`two-layer-soil.engine.ts`), the same expressions the Windows
+ *     two-layer 80-86 report forms use. The 1986 design forms
+ *     (`Ieeef95n.frm`, `Twolay.frm`) are not in the VB source, so the
+ *     1986-specific part of the two-layer path is reconstructed from the
+ *     report forms and has NOT been checked against Windows output.
  */
 export function evaluateGroundingSafety1986(
   input: SafetyEvaluationInput,
@@ -68,8 +68,20 @@ export function evaluateGroundingSafety1986(
 
   const geometricFactors1986 = computeGeometricFactors1986(geometry);
 
-  const { cs } = computeSurfaceDeratingFactor(
-    soil.apparentResistivity,
+  const grid = summarizeGridMeshes(geometry);
+
+  // Same two-layer handling as the 2013 path — the Windows 80-86 two-layer
+  // reports use the same Cm / Cs expressions.
+  const resolvedSoil = resolveSoilResistivities(soil, {
+    area: geometry.area,
+    burialDepth: geometry.burialDepth,
+    totalConductorLength: geometry.totalConductorLength,
+    totalRodLength: geometry.totalRodLength,
+    meshCount: grid.meshCount,
+  });
+
+  const { cs } = computeSurfaceDeratingFactor1986(
+    resolvedSoil.underSurfaceResistivity,
     settings.surfaceLayerResistivity,
     settings.surfaceLayerThickness,
   );
@@ -79,9 +91,13 @@ export function evaluateGroundingSafety1986(
     geometry.totalRodLength,
     geometry.length,
     geometry.width,
+    {
+      rodCount: geometry.rodCount,
+      hasPerimeterRods: geometry.hasPerimeterRods,
+    },
   );
   const meshResult = computeMeshVoltage(
-    soil.apparentResistivity,
+    resolvedSoil.meshResistivity,
     geometricFactors1986.km,
     geometricFactors1986.kiMesh,
     effectiveGridCurrent,
@@ -97,7 +113,7 @@ export function evaluateGroundingSafety1986(
     geometry.totalRodLength,
   );
   const stepResult = computeStepVoltage(
-    soil.apparentResistivity,
+    resolvedSoil.stepResistivity,
     geometricFactors1986.ks,
     geometricFactors1986.kiStep,
     effectiveGridCurrent,
@@ -128,7 +144,7 @@ export function evaluateGroundingSafety1986(
         settings.surfaceLayerResistivity,
         fault.shockDuration,
       ),
-      grid: summarizeGridMeshes(geometry),
+      grid,
       warnings: evaluateDesignValidity(geometry),
       safeForEveryPoint: isSafeForEveryPoint(
         gpr,
@@ -144,6 +160,7 @@ export function evaluateGroundingSafety1986(
         nStep: geometricFactors1986.nStep,
         kiStep: geometricFactors1986.kiStep,
       },
+      twoLayer: resolvedSoil.twoLayer,
     },
   };
 }

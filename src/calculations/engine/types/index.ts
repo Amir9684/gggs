@@ -246,5 +246,7 @@ export interface SafetyEvaluationResult {
     safeForEveryPoint: boolean;
     /** Conductor and mesh counts of the evaluated grid. */
     grid: GridMeshSummary;
+    /** Two-layer soil correction; `null` for uniform soil. */
+    twoLayer: TwoLayerSoilCorrection | null;
   };
 }

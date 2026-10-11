@@ -4,6 +4,7 @@ import { computeGeometricFactors } from './geometric-factors.engine';
 import { computeSurfaceDeratingFactor } from './surface-derating.engine';
 import { computePermissibleVoltages } from './permissible-voltage.engine';
 import { summarizeGridMeshes } from './grid-mesh-summary.engine';
+import { resolveSoilResistivities } from './two-layer-soil.engine';
 import {
   evaluateDesignValidity,
   isSafeForEveryPoint,
@@ -53,8 +54,21 @@ export function evaluateGroundingSafety(
 
   const geometricFactors = computeGeometricFactors(geometry);
 
+  const grid = summarizeGridMeshes(geometry);
+
+  // Uniform soil: all three resistivities equal `apparentResistivity`.
+  // Two-layer soil: Em / Es use ρ1 scaled by Cm / Cs (see
+  // `two-layer-soil.engine.ts`) and Cs derates against ρ1.
+  const resolvedSoil = resolveSoilResistivities(soil, {
+    area: geometry.area,
+    burialDepth: geometry.burialDepth,
+    totalConductorLength: geometry.totalConductorLength,
+    totalRodLength: geometry.totalRodLength,
+    meshCount: grid.meshCount,
+  });
+
   const { cs } = computeSurfaceDeratingFactor(
-    soil.apparentResistivity,
+    resolvedSoil.underSurfaceResistivity,
     settings.surfaceLayerResistivity,
     settings.surfaceLayerThickness,
   );
@@ -64,9 +78,13 @@ export function evaluateGroundingSafety(
     geometry.totalRodLength,
     geometry.length,
     geometry.width,
+    {
+      rodCount: geometry.rodCount,
+      hasPerimeterRods: geometry.hasPerimeterRods,
+    },
   );
   const meshResult = computeMeshVoltage(
-    soil.apparentResistivity,
+    resolvedSoil.meshResistivity,
     geometricFactors.km,
     geometricFactors.ki,
     effectiveGridCurrent,
@@ -82,7 +100,7 @@ export function evaluateGroundingSafety(
     geometry.totalRodLength,
   );
   const stepResult = computeStepVoltage(
-    soil.apparentResistivity,
+    resolvedSoil.stepResistivity,
     geometricFactors.ks,
     geometricFactors.ki,
     effectiveGridCurrent,
@@ -116,13 +134,14 @@ export function evaluateGroundingSafety(
         settings.surfaceLayerResistivity,
         fault.shockDuration,
       ),
-      grid: summarizeGridMeshes(geometry),
+      grid,
       warnings: evaluateDesignValidity(geometry),
       safeForEveryPoint: isSafeForEveryPoint(
         gpr,
         meshResult.permissibleTouchVoltage,
       ),
       geometricFactors,
+      twoLayer: resolvedSoil.twoLayer,
     },
   };
 }

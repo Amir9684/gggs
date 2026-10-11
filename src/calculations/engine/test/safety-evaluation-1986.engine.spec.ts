@@ -67,11 +67,13 @@ describe('evaluateGroundingSafety1986', () => {
     );
   });
 
-  it('Cs matches the 2013 engine exactly \u2014 reused as a documented approximation, not a faithful 1986 series', () => {
+  it('Cs comes from the 1986 infinite series, not the 2013 curve fit', () => {
     const result1986 = evaluateGroundingSafety1986(baseInput());
     const result2013 = evaluateGroundingSafety(baseInput());
 
-    expect(result1986.details.cs).toBeCloseTo(result2013.details.cs, 9);
+    // base input: rho = 400, rhos = 2500, hs = 0.102
+    expect(result1986.details.cs).toBeCloseTo(0.634057, 5);
+    expect(result1986.details.cs).toBeLessThan(result2013.details.cs);
   });
 
   it('mesh voltage differs from the 2013 engine for a non-square axis-count split, because n genuinely differs', () => {
