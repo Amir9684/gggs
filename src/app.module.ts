@@ -10,7 +10,7 @@ import { GridsModule } from './grids/grids.module';
 import { SoilModule } from './soil/soil.module';
 import { CalculationsModule } from './calculations/calculations.module';
 import { ReportsModule } from './reports/reports.module';
-import { LegacyImportModule } from './legacy-import/legacy-import.module';
+import { LegacyImportModule } from './legacy/legacy-import.module';
 
 import { HttpExceptionFilter } from './app/http-exception.filter';
 import { AuthModule } from './auth/auth.module';
