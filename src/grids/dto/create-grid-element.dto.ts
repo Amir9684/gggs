@@ -23,8 +23,24 @@ const createGridElementSchema = z.object({
  * (conductors, rods, fences, ...), so creation supports a single element
  * or a batch sharing the same `gridId`.
  */
+const MAX_BULK_ELEMENTS = 5000;
+
+/**
+ * Optional new plan dimensions for the grid, applied in the same
+ * transaction as the element replacement. A generated layout changes the
+ * grid's length/width/burial depth together with its conductors, and the
+ * two must never be saved apart.
+ */
+const bulkGridDimensionsSchema = z.object({
+  length: z.number().positive('طول شبکه باید مثبت باشد').optional(),
+  width: z.number().positive('عرض شبکه باید مثبت باشد').optional(),
+  burialDepth: z.number().positive('عمق دفن باید مثبت باشد').optional(),
+});
+
 const createGridElementsBulkSchema = z.object({
   gridId: z.string('آیدی شبکه الزامیست'),
+
+  grid: bulkGridDimensionsSchema.optional(),
 
   elements: z
     .array(
@@ -35,7 +51,10 @@ const createGridElementsBulkSchema = z.object({
       }),
     )
     .min(1, 'حداقل یک المان الزامیست')
-    .max(10000, 'حداکثر ۱۰۰۰۰ المان در هر درخواست مجاز است'),
+    .max(
+      MAX_BULK_ELEMENTS,
+      `حداکثر ${MAX_BULK_ELEMENTS} المان در هر ذخیره مجاز است`,
+    ),
 });
 
 class CreateGridElementDto extends createZodDto(createGridElementSchema) {}
@@ -44,6 +63,8 @@ class CreateGridElementsBulkDto extends createZodDto(
 ) {}
 
 export {
+  MAX_BULK_ELEMENTS,
+  bulkGridDimensionsSchema,
   gridElementTypeSchema,
   createGridElementSchema,
   createGridElementsBulkSchema,
