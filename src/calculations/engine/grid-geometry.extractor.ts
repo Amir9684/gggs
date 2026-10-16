@@ -21,6 +21,44 @@ const GRID_ELEMENT_TYPE = {
 const DEFAULT_CONDUCTOR_DIAMETER_M = 0.01; // 10 mm, a typical bare copper grounding conductor — used only if no element specifies one.
 const PARALLEL_ANGLE_TOLERANCE_DEG = 5; // conductors within this many degrees of an axis are treated as running along that axis.
 
+/** Reads a finite, positive number from `value`, otherwise `undefined`. */
+function positive(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/**
+ * Conductor diameter (m) of one CONDUCTOR element. The engine's own key
+ * `diameter` (m) wins; otherwise the editor's `diameterMm`, otherwise the
+ * diameter of a round conductor with the element's `crossSectionMm2` —
+ * the Windows rule `dia = 0.002 · √(A / π)`.
+ */
+function conductorDiameterM(
+  properties: Record<string, any> | null | undefined,
+): number | undefined {
+  const direct = positive(properties?.diameter);
+  if (direct !== undefined) return direct;
+
+  const mm = positive(properties?.diameterMm);
+  if (mm !== undefined) return mm / 1000;
+
+  const area = positive(properties?.crossSectionMm2);
+  if (area !== undefined) return 0.002 * Math.sqrt(area / Math.PI);
+
+  return undefined;
+}
+
+/**
+ * Ground rod length (m): the engine's `length`, or the editor's `lengthM`
+ * (the grid editor has always stored the latter).
+ */
+function rodLengthM(
+  properties: Record<string, any> | null | undefined,
+): number {
+  return positive(properties?.length) ?? positive(properties?.lengthM) ?? 0;
+}
+
 function distance(a: Position, b: Position): number {
   return Math.hypot(b[0] - a[0], b[1] - a[1]);
 }
@@ -31,37 +69,6 @@ function lineLength(line: Position[]): number {
     total += distance(line[i - 1], line[i]);
   }
   return total;
-}
-
-/**
- * Conductor diameter (m) from an element's `properties`. The grid editor
- * stores the cross-section (`crossSectionMm2`) and the Windows GGGS app
- * derives the diameter from it as d = 2 * sqrt(A / pi); an explicit
- * `diameter` (m) is also accepted for elements created through the API.
- */
-function conductorDiameterM(
-  properties: Record<string, any> | null | undefined,
-): number | null {
-  const area = Number(properties?.crossSectionMm2);
-  if (Number.isFinite(area) && area > 0) {
-    return (2 * Math.sqrt(area / Math.PI)) / 1000;
-  }
-  const diameter = Number(properties?.diameter);
-  return Number.isFinite(diameter) && diameter > 0 ? diameter : null;
-}
-
-/**
- * Rod length (m) from an element's `properties`: `lengthM` is what the grid
- * editor writes, `length` is accepted for elements created through the API.
- */
-function rodLengthM(
-  properties: Record<string, any> | null | undefined,
-): number {
-  for (const key of ['lengthM', 'length']) {
-    const value = Number(properties?.[key]);
-    if (Number.isFinite(value) && value > 0) return value;
-  }
-  return 0;
 }
 
 /** Angle of a line's overall direction, in degrees, normalized to [0, 180). */
@@ -148,7 +155,7 @@ export function extractGridGeometry(
 
   const diameters = conductorElements
     .map((e) => conductorDiameterM(e.properties))
-    .filter((d): d is number => d !== null);
+    .filter((d): d is number => d !== undefined);
   const conductorDiameter =
     diameters.length > 0
       ? diameters.reduce((sum, d) => sum + d, 0) / diameters.length

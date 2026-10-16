@@ -174,60 +174,82 @@ describe('extractGridGeometry', () => {
   });
 
   describe('properties written by the grid editor', () => {
-    it('reads the rod length from lengthM', () => {
-      const geometry = extractGridGeometry(grid, [
-        conductor([
+    const editorConductor = (
+      properties: Record<string, unknown>,
+    ): GridElementLike => ({
+      type: GRID_ELEMENT_TYPE.CONDUCTOR,
+      geometry: {
+        type: 'LineString',
+        coordinates: [
           [0, 0],
           [60, 0],
-        ]),
+        ],
+      },
+      properties,
+    });
+
+    it('reads the rod length from `lengthM`', () => {
+      const elements: GridElementLike[] = [
         {
           type: GRID_ELEMENT_TYPE.ROD,
-          geometry: { type: 'Point', coordinates: [0, 0] },
+          geometry: { type: 'Point', coordinates: [5, 5] },
           properties: { lengthM: 3, diameterMm: 16 },
         },
         {
           type: GRID_ELEMENT_TYPE.ROD,
-          geometry: { type: 'Point', coordinates: [60, 0] },
-          properties: { lengthM: 4.5, diameterMm: 16 },
+          geometry: { type: 'Point', coordinates: [55, 35] },
+          properties: { lengthM: 2.5 },
         },
-      ]);
-      expect(geometry.rodCount).toBe(2);
-      expect(geometry.totalRodLength).toBe(7.5);
+      ];
+
+      const summary = extractGridGeometry(grid, elements);
+      expect(summary.totalRodLength).toBeCloseTo(5.5, 6);
     });
 
-    it('derives the conductor diameter from the cross-section (d = 2*sqrt(A/pi))', () => {
-      const geometry = extractGridGeometry(grid, [
+    it('prefers `length` over `lengthM` when both are present', () => {
+      const summary = extractGridGeometry(grid, [
         {
-          type: GRID_ELEMENT_TYPE.CONDUCTOR,
-          geometry: {
-            type: 'LineString',
-            coordinates: [
-              [0, 0],
-              [60, 0],
-            ],
-          },
-          properties: {
-            material: 'COPPER_ANNEALED_SOFT_DRAWN',
-            crossSectionMm2: 78.53982,
-          },
+          type: GRID_ELEMENT_TYPE.ROD,
+          geometry: { type: 'Point', coordinates: [5, 5] },
+          properties: { length: 4, lengthM: 3 },
         },
       ]);
-      expect(geometry.conductorDiameter).toBeCloseTo(0.01, 6);
+      expect(summary.totalRodLength).toBeCloseTo(4, 6);
     });
 
-    it('still accepts an explicit diameter (m) and length for API-created elements', () => {
-      const geometry = extractGridGeometry(grid, [
-        conductor(
-          [
-            [0, 0],
-            [60, 0],
-          ],
-          0.012,
-        ),
-        rod([0, 0], 3),
+    it('derives the conductor diameter from the cross-section like Windows', () => {
+      // dia = 0.002 * sqrt(A / pi): 70 mm2 -> 9.441 mm
+      const summary = extractGridGeometry(grid, [
+        editorConductor({ crossSectionMm2: 70 }),
       ]);
-      expect(geometry.conductorDiameter).toBeCloseTo(0.012, 12);
-      expect(geometry.totalRodLength).toBe(3);
+      expect(summary.conductorDiameter).toBeCloseTo(0.009441, 6);
+    });
+
+    it('uses `diameterMm` before the cross-section, and `diameter` before both', () => {
+      expect(
+        extractGridGeometry(grid, [
+          editorConductor({ diameterMm: 12, crossSectionMm2: 70 }),
+        ]).conductorDiameter,
+      ).toBeCloseTo(0.012, 6);
+
+      expect(
+        extractGridGeometry(grid, [
+          editorConductor({ diameter: 0.02, diameterMm: 12 }),
+        ]).conductorDiameter,
+      ).toBeCloseTo(0.02, 6);
+    });
+
+    it('ignores non-positive or non-numeric values', () => {
+      const summary = extractGridGeometry(grid, [
+        {
+          type: GRID_ELEMENT_TYPE.ROD,
+          geometry: { type: 'Point', coordinates: [5, 5] },
+          properties: { lengthM: -3 },
+        },
+        editorConductor({ crossSectionMm2: 'abc', diameterMm: 0 }),
+      ]);
+      expect(summary.totalRodLength).toBe(0);
+      expect(summary.conductorDiameter).toBeCloseTo(0.01, 6);
     });
   });
 });
