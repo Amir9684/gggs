@@ -21,6 +21,7 @@ import {
 import { UpdateGridElementDto } from './dto/update-grid-element.dto';
 import { GetGridElementsQueryDTO } from './dto/get-grid-elements-query.dto';
 import { CreateGridSnapshotDto } from './dto/create-grid-snapshot.dto';
+import { GenerateGridDto } from './dto/generate-grid.dto';
 
 @Auth()
 @Controller('grid-elements')
@@ -41,6 +42,18 @@ export class GridElementsController {
     @CurrentUser() user: TAuthenticatedUserType,
   ) {
     return this.gridElementsService.createBulk(createGridElementsBulkDto, user);
+  }
+
+  /**
+   * Generates a regular rectangular grid from parameters and replaces the
+   * grid's elements (and dimensions) with it.
+   */
+  @Post('generate')
+  generate(
+    @Body() generateGridDto: GenerateGridDto,
+    @CurrentUser() user: TAuthenticatedUserType,
+  ) {
+    return this.gridElementsService.generate(generateGridDto, user);
   }
 
   @Get()

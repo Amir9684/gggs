@@ -34,7 +34,8 @@ const createGridElementsBulkSchema = z.object({
         properties: z.record(z.string(), z.any()).optional().default({}),
       }),
     )
-    .min(1, 'حداقل یک المان الزامیست'),
+    .min(1, 'حداقل یک المان الزامیست')
+    .max(10000, 'حداکثر ۱۰۰۰۰ المان در هر درخواست مجاز است'),
 });
 
 class CreateGridElementDto extends createZodDto(createGridElementSchema) {}

@@ -16,6 +16,10 @@ import {
 import { UpdateGridElementDto } from './dto/update-grid-element.dto';
 import { GetGridElementsQueryDTO } from './dto/get-grid-elements-query.dto';
 import { CreateGridSnapshotDto } from './dto/create-grid-snapshot.dto';
+import { GenerateGridDto } from './dto/generate-grid.dto';
+import { toGeneratorParams } from './dto/grid-generator.schema';
+import { Grid } from './entities/grid.entity';
+import { generateRectangularGrid } from 'src/calculations/engine/grid-generator.engine';
 
 @Injectable()
 export class GridElementsService {
@@ -100,6 +104,69 @@ export class GridElementsService {
         statusCode: HttpStatus.CREATED,
         messages: 'المان‌ها با موفقیت ذخیره شدند.',
         data: savedElements,
+      };
+    });
+  }
+
+  /**
+   * Generates a regular rectangular grid (conductor lines + rods) from
+   * parameters and replaces the grid's elements with it. The grid's own
+   * dimensions and burial depth are updated to the generator's, so the stored
+   * grid and its elements never disagree. One transaction — a failure leaves
+   * the previous grid untouched.
+   */
+  generate(generateGridDto: GenerateGridDto, user: TAuthenticatedUserType) {
+    return asyncFn(async () => {
+      const { gridId } = generateGridDto;
+
+      const grid = await this.gridsService.findOwnedOrAdmin(gridId, user);
+      if (!grid) {
+        return {
+          statusCode: HttpStatus.NOT_FOUND,
+          data: null,
+          messages: `شبکه با آیدی: ${gridId} یافت نشد.`,
+        };
+      }
+
+      let generated: ReturnType<typeof generateRectangularGrid>;
+      const params = toGeneratorParams(generateGridDto);
+      try {
+        generated = generateRectangularGrid(params);
+      } catch (error) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: `پارامترهای تولید شبکه نامعتبر است: ${(error as Error).message}`,
+        };
+      }
+
+      const savedElements =
+        await this.gridElementRepository.manager.transaction(
+          async (manager) => {
+            await manager.update(Grid, gridId, {
+              length: params.length,
+              width: params.width,
+              burialDepth: params.burialDepth,
+            });
+            await manager.delete(GridElement, { grid: { id: gridId } });
+
+            const newElements = generated.elements.map((element) =>
+              manager.create(GridElement, {
+                type: element.type,
+                geometry: element.geometry,
+                properties: element.properties,
+                grid: { id: gridId },
+              }),
+            );
+
+            return manager.save(GridElement, newElements);
+          },
+        );
+
+      return {
+        statusCode: HttpStatus.CREATED,
+        messages: 'شبکه با موفقیت تولید شد.',
+        data: { elements: savedElements, summary: generated.summary },
       };
     });
   }
