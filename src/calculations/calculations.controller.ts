@@ -17,6 +17,7 @@ import { CalculationsService } from './calculations.service';
 import { CreateCalculationCaseDto } from './dto/create-calculation-case.dto';
 import { UpdateCalculationCaseDto } from './dto/update-calculation-case.dto';
 import { GetCalculationCasesQueryDTO } from './dto/get-calculation-cases-query.dto';
+import { PreviewCalculationDto } from './dto/preview-calculation.dto';
 
 /**
  * Every route is scoped to the requesting user's own projects via the
@@ -70,6 +71,19 @@ export class CalculationsController {
   @Post(':id/run')
   run(@Param('id') id: string, @CurrentUser() user: TAuthenticatedUserType) {
     return this.calculationsService.run(id, user);
+  }
+
+  /**
+   * Stateless preview: evaluates the case with optional overrides and
+   * returns the result without saving anything.
+   */
+  @Post(':id/preview')
+  preview(
+    @Param('id') id: string,
+    @Body() previewCalculationDto: PreviewCalculationDto,
+    @CurrentUser() user: TAuthenticatedUserType,
+  ) {
+    return this.calculationsService.preview(id, previewCalculationDto, user);
   }
 
   @Get(':id/results')

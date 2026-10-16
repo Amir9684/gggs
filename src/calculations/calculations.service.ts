@@ -31,15 +31,15 @@ import {
   SoilLayeringMethod,
 } from './enum';
 
-import { extractGridGeometry } from './engine/grid-geometry.extractor';
-import { computeApparentResistivity } from './engine/soil-apparent-resistivity.engine';
 import { evaluateGroundingSafety } from './engine/safety-evaluation.engine';
 import { evaluateGroundingSafety1986 } from './engine/safety-evaluation-1986.engine';
 import { sampleSurfacePotential } from './engine/surface-potential-sampling.engine';
 import { deriveDecrementFactor } from './engine/decrement-factor.engine';
 import { computeConductorSizing } from './engine/conductor-sizing.engine';
-import { summarizeGridMeshes } from './engine/grid-mesh-summary.engine';
-import type { SafetyEvaluationInput } from './engine/types';
+import { buildEvaluationInput } from './evaluation-input.builder';
+import { generateRectangularGrid } from './engine/grid-generator.engine';
+import { toGeneratorParams } from 'src/grids/dto/grid-generator.schema';
+import type { PreviewCalculationDto } from './dto/preview-calculation.dto';
 
 /**
  * `CalculationCase` is the aggregate root for a single grounding-safety
@@ -519,6 +519,33 @@ export class CalculationsService {
     });
   }
 
+  /** Latest fault / settings rows, drawn elements and soil layers of a case. */
+  private async loadEvaluationData(calculationCase: CalculationCase) {
+    const id = calculationCase.id;
+    const [fault, settings, elements, layers] = await Promise.all([
+      this.caseFaultRepository.findOne({
+        where: { calculationCase: { id } },
+        order: { createdAt: 'DESC' },
+      }),
+
+      this.caseSettingRepository.findOne({
+        where: { calculationCase: { id } },
+        order: { createdAt: 'DESC' },
+      }),
+
+      this.gridElementRepository.find({
+        where: { grid: { id: calculationCase.grid.id } },
+      }),
+
+      this.soilLayerRepository.find({
+        where: { soilModel: { id: calculationCase.soilModel.id } },
+        order: { layerOrder: 'ASC' },
+      }),
+    ]);
+
+    return { fault, settings, elements, layers };
+  }
+
   /**
    * The actual "run the calculation" entrypoint. Pulls together everything
    * a `CalculationCase` points at — grid dimensions + drawn `GridElement`s,
@@ -545,26 +572,8 @@ export class CalculationsService {
         };
       }
 
-      const [fault, settings, elements, layers] = await Promise.all([
-        this.caseFaultRepository.findOne({
-          where: { calculationCase: { id } },
-          order: { createdAt: 'DESC' },
-        }),
-
-        this.caseSettingRepository.findOne({
-          where: { calculationCase: { id } },
-          order: { createdAt: 'DESC' },
-        }),
-
-        this.gridElementRepository.find({
-          where: { grid: { id: calculationCase.grid.id } },
-        }),
-
-        this.soilLayerRepository.find({
-          where: { soilModel: { id: calculationCase.soilModel.id } },
-          order: { layerOrder: 'ASC' },
-        }),
-      ]);
+      const { fault, settings, elements, layers } =
+        await this.loadEvaluationData(calculationCase);
 
       // ---------------------------------------------------------
       // Required calculation data
@@ -598,336 +607,28 @@ export class CalculationsService {
         };
       }
 
-      const { grid, soilModel } = calculationCase;
-
-      // ---------------------------------------------------------
-      // Convert database decimal values to numbers
-      // ---------------------------------------------------------
-
-      const gridLength = Number(grid.length);
-      const gridWidth = Number(grid.width);
-      const burialDepth = Number(grid.burialDepth);
-
-      const faultCurrent = Number(fault.faultCurrent);
-      const faultDuration = Number(fault.faultDuration);
-      const splitFactor = Number(fault.splitFactor);
-      const decrementFactor = Number(fault.decrementFactor);
-      const shockDuration = Number(fault.shockDuration);
-
-      const surfaceLayerResistivity = Number(settings.surfaceLayerResistivity);
-      const surfaceLayerThickness = Number(settings.surfaceLayerThickness);
-      const bodyWeight = Number(settings.bodyWeight);
-      const frequency = Number(settings.frequency);
-
-      const surfaceResistivity = Number(soilModel.surfaceResistivity);
-
-      // ---------------------------------------------------------
-      // Validate grid
-      // ---------------------------------------------------------
-
-      if (!Number.isFinite(gridLength) || gridLength <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'طول شبکه باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      if (!Number.isFinite(gridWidth) || gridWidth <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'عرض شبکه باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      if (!Number.isFinite(burialDepth) || burialDepth < 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'عمق دفن شبکه نمی‌تواند منفی باشد.',
-        };
-      }
-
-      // ---------------------------------------------------------
-      // Extract grid geometry
-      // ---------------------------------------------------------
-
-      const geometry = extractGridGeometry(
-        {
-          length: gridLength,
-          width: gridWidth,
-          burialDepth,
-        },
+      // Validation and reduction to the engine's input are shared with the
+      // stateless preview — see `evaluation-input.builder.ts`.
+      const built = buildEvaluationInput({
+        soilLayering: calculationCase.soilLayering,
+        grid: calculationCase.grid,
         elements,
-      );
+        soilModel: calculationCase.soilModel,
+        layers,
+        fault,
+        settings,
+      });
 
-      // A grounding grid must contain at least one
-      // conductor or rod with a positive length.
-      if (
-        !Number.isFinite(geometry.totalConductorLength) ||
-        !Number.isFinite(geometry.totalRodLength) ||
-        geometry.totalConductorLength < 0 ||
-        geometry.totalRodLength < 0
-      ) {
+      if (!built.ok) {
         return {
-          statusCode: HttpStatus.BAD_REQUEST,
+          statusCode: built.statusCode,
           data: null,
-          messages: 'اطلاعات هادی‌ها یا میله‌های ارت شبکه نامعتبر است.',
+          messages: built.message,
         };
       }
 
-      if (geometry.totalConductorLength <= 0 && geometry.totalRodLength <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages:
-            'امکان انجام محاسبات وجود ندارد. شبکه ارت فاقد هادی یا میله ارت است. لطفاً حداقل یک هادی یا میله ارت به شبکه اضافه کنید.',
-        };
-      }
-
-      if (!Number.isFinite(geometry.area) || geometry.area <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'مساحت شبکه باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      if (
-        !Number.isFinite(geometry.averageSpacing) ||
-        geometry.averageSpacing <= 0
-      ) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages:
-            'فاصله متوسط هادی‌های شبکه نامعتبر است. لطفاً آرایش هادی‌های شبکه را بررسی کنید.',
-        };
-      }
-
-      if (
-        !Number.isFinite(geometry.conductorDiameter) ||
-        geometry.conductorDiameter <= 0
-      ) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'قطر هادی شبکه باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      // ---------------------------------------------------------
-      // Validate soil model
-      // ---------------------------------------------------------
-
-      const soilLayers = layers.map((layer) => ({
-        resistivity: Number(layer.resistivity),
-        thickness: Number(layer.thickness),
-        layerOrder: layer.layerOrder,
-      }));
-
-      const invalidSoilLayer = soilLayers.some(
-        (layer) =>
-          !Number.isFinite(layer.resistivity) ||
-          layer.resistivity <= 0 ||
-          !Number.isFinite(layer.thickness) ||
-          layer.thickness < 0,
-      );
-
-      if (invalidSoilLayer) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages:
-            'اطلاعات یکی از لایه‌های خاک نامعتبر است. مقاومت ویژه باید مثبت و ضخامت نمی‌تواند منفی باشد.',
-        };
-      }
-
-      if (!Number.isFinite(surfaceResistivity) || surfaceResistivity <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'مقاومت ویژه سطح خاک باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      // ---------------------------------------------------------
-      // Calculate apparent soil resistivity
-      // ---------------------------------------------------------
-
-      const apparentResistivity = computeApparentResistivity(soilLayers);
-
-      if (!Number.isFinite(apparentResistivity) || apparentResistivity <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages:
-            'مقاومت ویژه ظاهری خاک نامعتبر است. لطفاً مدل خاک را بررسی کنید.',
-        };
-      }
-
-      // ---------------------------------------------------------
-      // Two-layer soil: exactly two layers, upper one has a thickness
-      // ---------------------------------------------------------
-
-      const isTwoLayer =
-        calculationCase.soilLayering === SoilLayeringMethod.TWO_LAYER;
-
-      if (isTwoLayer) {
-        if (soilLayers.length !== 2) {
-          return {
-            statusCode: HttpStatus.BAD_REQUEST,
-            data: null,
-            messages: `برای خاک دولایه، مدل خاک باید دقیقاً دو لایه داشته باشد (مدل انتخاب‌شده ${soilLayers.length} لایه دارد).`,
-          };
-        }
-
-        if (soilLayers[0].thickness <= 0) {
-          return {
-            statusCode: HttpStatus.BAD_REQUEST,
-            data: null,
-            messages:
-              'برای خاک دولایه، ضخامت لایهٔ بالایی باید بزرگ‌تر از صفر باشد.',
-          };
-        }
-
-        const { meshCount } = summarizeGridMeshes(geometry);
-        if (geometry.totalRodLength > 0 && meshCount < 1) {
-          return {
-            statusCode: HttpStatus.BAD_REQUEST,
-            data: null,
-            messages:
-              'برای محاسبهٔ خاک دولایه با میله‌های زمین، شبکه باید حداقل یک مش داشته باشد.',
-          };
-        }
-      }
-
-      // ---------------------------------------------------------
-      // Validate fault parameters
-      // ---------------------------------------------------------
-
-      if (!Number.isFinite(faultCurrent) || faultCurrent <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'جریان خطا باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      if (
-        !Number.isFinite(splitFactor) ||
-        splitFactor <= 0 ||
-        splitFactor > 1
-      ) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages:
-            'ضریب تقسیم جریان باید بیشتر از صفر و حداکثر برابر با ۱ باشد.',
-        };
-      }
-
-      if (!Number.isFinite(decrementFactor) || decrementFactor < 1) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'ضریب کاهشی جریان باید بزرگ‌تر یا مساوی ۱ باشد.',
-        };
-      }
-
-      if (!Number.isFinite(faultDuration) || faultDuration <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'مدت زمان خطا باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      if (!Number.isFinite(shockDuration) || shockDuration <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'مدت زمان شوک باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      // ---------------------------------------------------------
-      // Validate settings
-      // ---------------------------------------------------------
-
-      if (
-        !Number.isFinite(surfaceLayerThickness) ||
-        surfaceLayerThickness < 0
-      ) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'ضخامت لایه سطحی نمی‌تواند منفی باشد.',
-        };
-      }
-
-      if (
-        !Number.isFinite(surfaceLayerResistivity) ||
-        surfaceLayerResistivity < 0
-      ) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'مقاومت ویژه لایه سطحی نمی‌تواند منفی باشد.',
-        };
-      }
-
-      if (!Number.isFinite(bodyWeight) || bodyWeight <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'وزن بدن باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      if (!Number.isFinite(frequency) || frequency <= 0) {
-        return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          data: null,
-          messages: 'فرکانس شبکه باید بزرگ‌تر از صفر باشد.',
-        };
-      }
-
-      // ---------------------------------------------------------
-      // Build calculation input
-      // ---------------------------------------------------------
-
-      const evaluationInput: SafetyEvaluationInput = {
-        geometry,
-
-        soil: {
-          surfaceResistivity,
-          apparentResistivity,
-          ...(isTwoLayer && {
-            twoLayer: {
-              upperResistivity: soilLayers[0].resistivity,
-              lowerResistivity: soilLayers[1].resistivity,
-              upperThickness: soilLayers[0].thickness,
-            },
-          }),
-        },
-
-        fault: {
-          faultCurrent,
-          faultDuration,
-          splitFactor,
-          decrementFactor,
-          shockDuration,
-        },
-
-        settings: {
-          surfaceLayerResistivity,
-          surfaceLayerThickness,
-          bodyWeight,
-          frequency,
-        },
-      };
+      const evaluationInput = built.input;
+      const { geometry } = evaluationInput;
 
       // ---------------------------------------------------------
       // Run IEEE 80 calculation
@@ -1006,6 +707,145 @@ export class CalculationsService {
           ...savedResult,
           details: evaluation.details,
         },
+      };
+    });
+  }
+
+  /**
+   * Stateless preview: evaluates the case with optional overrides (a
+   * parametric grid, fault values, settings) and returns the result WITHOUT
+   * saving anything — no `CalculationResult`, no sample maps, no changes to
+   * the case, its grid or its fault / settings rows. Meant for live
+   * recalculation while a user drags sliders.
+   */
+  preview(
+    id: string,
+    previewCalculationDto: PreviewCalculationDto,
+    user: TAuthenticatedUserType,
+  ) {
+    return asyncFn(async () => {
+      const calculationCase = await this.findOwnedOrAdmin(id, user);
+
+      if (!calculationCase) {
+        return {
+          statusCode: HttpStatus.NOT_FOUND,
+          data: null,
+          messages: `کیس محاسباتی با آیدی: ${id} یافت نشد.`,
+        };
+      }
+
+      const stored = await this.loadEvaluationData(calculationCase);
+
+      if (!stored.fault || !stored.settings) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages:
+            'برای این کیس، اطلاعات خطا یا تنظیمات ثبت نشده است. ابتدا کیس را کامل کنید.',
+        };
+      }
+
+      if (stored.layers.length === 0) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: 'مدل خاک انتخاب‌شده هیچ لایه‌ای ندارد.',
+        };
+      }
+
+      if (!IMPLEMENTED_DESIGN_METHODS.includes(calculationCase.designMethod)) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: `روش طراحی «${calculationCase.designMethod}» هنوز در بک‌اند پیاده‌سازی نشده است. فعلاً فقط IEEE 80-2000 و IEEE 80-86 پشتیبانی می‌شوند.`,
+        };
+      }
+
+      // Parametric grid overrides the stored grid and its elements.
+      let grid: { length: number; width: number; burialDepth: number } = {
+        length: Number(calculationCase.grid.length),
+        width: Number(calculationCase.grid.width),
+        burialDepth: Number(calculationCase.grid.burialDepth),
+      };
+      let elements = stored.elements;
+      let generatedSummary:
+        | ReturnType<typeof generateRectangularGrid>['summary']
+        | null = null;
+
+      if (previewCalculationDto.grid) {
+        const params = toGeneratorParams(previewCalculationDto.grid);
+        try {
+          const generated = generateRectangularGrid(params);
+          elements = generated.elements as typeof elements;
+          generatedSummary = generated.summary;
+          grid = {
+            length: params.length,
+            width: params.width,
+            burialDepth: params.burialDepth,
+          };
+        } catch (error) {
+          return {
+            statusCode: HttpStatus.BAD_REQUEST,
+            data: null,
+            messages: `پارامترهای تولید شبکه نامعتبر است: ${(error as Error).message}`,
+          };
+        }
+      }
+
+      // Fault: a new duration without an explicit Df re-derives Df.
+      const faultOverride = previewCalculationDto.fault ?? {};
+      const fault = {
+        faultCurrent: faultOverride.faultCurrent ?? stored.fault.faultCurrent,
+        faultDuration:
+          faultOverride.faultDuration ?? stored.fault.faultDuration,
+        splitFactor: faultOverride.splitFactor ?? stored.fault.splitFactor,
+        shockDuration: stored.fault.shockDuration,
+        decrementFactor:
+          faultOverride.decrementFactor ??
+          (faultOverride.faultDuration !== undefined
+            ? deriveDecrementFactor(faultOverride.faultDuration)
+            : stored.fault.decrementFactor),
+      };
+
+      const settingsOverride = previewCalculationDto.settings ?? {};
+      const settings = {
+        surfaceLayerResistivity:
+          settingsOverride.surfaceLayerResistivity ??
+          stored.settings.surfaceLayerResistivity,
+        surfaceLayerThickness:
+          settingsOverride.surfaceLayerThickness ??
+          stored.settings.surfaceLayerThickness,
+        bodyWeight: settingsOverride.bodyWeight ?? stored.settings.bodyWeight,
+        frequency: settingsOverride.frequency ?? stored.settings.frequency,
+      };
+
+      const built = buildEvaluationInput({
+        soilLayering: calculationCase.soilLayering,
+        grid,
+        elements,
+        soilModel: calculationCase.soilModel,
+        layers: stored.layers,
+        fault,
+        settings,
+      });
+
+      if (!built.ok) {
+        return {
+          statusCode: built.statusCode,
+          data: null,
+          messages: built.message,
+        };
+      }
+
+      const evaluation =
+        calculationCase.designMethod === DesignMethod.IEEE_80_86
+          ? evaluateGroundingSafety1986(built.input)
+          : evaluateGroundingSafety(built.input);
+
+      return {
+        statusCode: HttpStatus.OK,
+        messages: [],
+        data: { ...evaluation, generated: generatedSummary },
       };
     });
   }
