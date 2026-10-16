@@ -33,6 +33,37 @@ function lineLength(line: Position[]): number {
   return total;
 }
 
+/**
+ * Conductor diameter (m) from an element's `properties`. The grid editor
+ * stores the cross-section (`crossSectionMm2`) and the Windows GGGS app
+ * derives the diameter from it as d = 2 * sqrt(A / pi); an explicit
+ * `diameter` (m) is also accepted for elements created through the API.
+ */
+function conductorDiameterM(
+  properties: Record<string, any> | null | undefined,
+): number | null {
+  const area = Number(properties?.crossSectionMm2);
+  if (Number.isFinite(area) && area > 0) {
+    return (2 * Math.sqrt(area / Math.PI)) / 1000;
+  }
+  const diameter = Number(properties?.diameter);
+  return Number.isFinite(diameter) && diameter > 0 ? diameter : null;
+}
+
+/**
+ * Rod length (m) from an element's `properties`: `lengthM` is what the grid
+ * editor writes, `length` is accepted for elements created through the API.
+ */
+function rodLengthM(
+  properties: Record<string, any> | null | undefined,
+): number {
+  for (const key of ['lengthM', 'length']) {
+    const value = Number(properties?.[key]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return 0;
+}
+
 /** Angle of a line's overall direction, in degrees, normalized to [0, 180). */
 function lineAngleDeg(line: Position[]): number {
   const [x0, y0] = line[0];
@@ -116,8 +147,8 @@ export function extractGridGeometry(
   );
 
   const diameters = conductorElements
-    .map((e) => Number(e.properties?.diameter))
-    .filter((d) => Number.isFinite(d) && d > 0);
+    .map((e) => conductorDiameterM(e.properties))
+    .filter((d): d is number => d !== null);
   const conductorDiameter =
     diameters.length > 0
       ? diameters.reduce((sum, d) => sum + d, 0) / diameters.length
@@ -149,10 +180,10 @@ export function extractGridGeometry(
       ? spacingSamples.reduce((sum, s) => sum + s, 0) / spacingSamples.length
       : Math.sqrt(grid.length * grid.width || 1) / 10; // fallback: a rough 10x10 mesh guess if no conductors are classified.
 
-  const totalRodLength = rodElements.reduce((sum, e) => {
-    const rodLength = Number(e.properties?.length);
-    return sum + (Number.isFinite(rodLength) && rodLength > 0 ? rodLength : 0);
-  }, 0);
+  const totalRodLength = rodElements.reduce(
+    (sum, e) => sum + rodLengthM(e.properties),
+    0,
+  );
 
   const perimeterToleranceM = Math.min(grid.length, grid.width) * 0.05;
   const hasPerimeterRods = rodElements.some((e) => {

@@ -172,4 +172,62 @@ describe('extractGridGeometry', () => {
     expect(summary.burialDepth).toBe(0.5);
     expect(summary.area).toBe(2400);
   });
+
+  describe('properties written by the grid editor', () => {
+    it('reads the rod length from lengthM', () => {
+      const geometry = extractGridGeometry(grid, [
+        conductor([
+          [0, 0],
+          [60, 0],
+        ]),
+        {
+          type: GRID_ELEMENT_TYPE.ROD,
+          geometry: { type: 'Point', coordinates: [0, 0] },
+          properties: { lengthM: 3, diameterMm: 16 },
+        },
+        {
+          type: GRID_ELEMENT_TYPE.ROD,
+          geometry: { type: 'Point', coordinates: [60, 0] },
+          properties: { lengthM: 4.5, diameterMm: 16 },
+        },
+      ]);
+      expect(geometry.rodCount).toBe(2);
+      expect(geometry.totalRodLength).toBe(7.5);
+    });
+
+    it('derives the conductor diameter from the cross-section (d = 2*sqrt(A/pi))', () => {
+      const geometry = extractGridGeometry(grid, [
+        {
+          type: GRID_ELEMENT_TYPE.CONDUCTOR,
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [0, 0],
+              [60, 0],
+            ],
+          },
+          properties: {
+            material: 'COPPER_ANNEALED_SOFT_DRAWN',
+            crossSectionMm2: 78.53982,
+          },
+        },
+      ]);
+      expect(geometry.conductorDiameter).toBeCloseTo(0.01, 6);
+    });
+
+    it('still accepts an explicit diameter (m) and length for API-created elements', () => {
+      const geometry = extractGridGeometry(grid, [
+        conductor(
+          [
+            [0, 0],
+            [60, 0],
+          ],
+          0.012,
+        ),
+        rod([0, 0], 3),
+      ]);
+      expect(geometry.conductorDiameter).toBeCloseTo(0.012, 12);
+      expect(geometry.totalRodLength).toBe(3);
+    });
+  });
 });
