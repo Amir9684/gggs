@@ -74,8 +74,9 @@ export class CalculationsController {
   }
 
   /**
-   * Stateless preview: evaluates the case with optional overrides and
-   * returns the result without saving anything.
+   * Stateless "what if": runs the same calculation as `run` for the case,
+   * optionally with overridden grid / elements / fault / settings values,
+   * and returns the numbers without saving a result or changing the case.
    */
   @Post(':id/preview')
   preview(

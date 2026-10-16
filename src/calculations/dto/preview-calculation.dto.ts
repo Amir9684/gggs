@@ -1,43 +1,58 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-import { gridGeneratorSchema } from 'src/grids/dto/grid-generator.schema';
+import { MAX_BULK_ELEMENTS } from 'src/grids/dto/create-grid-element.dto';
+import { gridElementTypeSchema } from 'src/grids/dto/create-grid-element.dto';
+import { geometrySchema } from 'src/grids/dto/geometry.schema';
 
 /**
- * Overrides for a stateless preview of a case. Nothing here is saved: the
- * case, its grid and its fault / settings rows stay exactly as stored, so a
- * UI can drive sliders against the engine without touching the data.
+ * Body of `POST /calculation-cases/:id/preview`.
+ *
+ * Everything is optional: an empty body previews the case exactly as
+ * stored. Whatever is sent replaces the stored value *for this preview
+ * only* — nothing here is saved. Values are only checked for being
+ * numbers; the real limits (positive, <= 1, ...) are enforced by the same
+ * validation `run()` uses, so a preview rejects exactly what a run would.
  */
 const previewCalculationSchema = z.object({
-  /**
-   * A parametric grid used INSTEAD of the case's stored grid and elements
-   * (dimensions, burial depth, line counts or spacing, rods, conductor
-   * diameter).
-   */
-  grid: gridGeneratorSchema.optional(),
+  grid: z
+    .object({
+      length: z.number().optional(),
+      width: z.number().optional(),
+      burialDepth: z.number().optional(),
+    })
+    .optional(),
+
+  // The editor's current, possibly unsaved, elements. When omitted the
+  // grid's saved elements are used.
+  elements: z
+    .array(
+      z.object({
+        type: gridElementTypeSchema,
+        geometry: geometrySchema,
+        properties: z.record(z.string(), z.any()).optional().default({}),
+      }),
+    )
+    .max(MAX_BULK_ELEMENTS)
+    .optional(),
 
   fault: z
     .object({
-      faultCurrent: z.number().positive('جریان خطا باید مثبت باشد'),
-      /** When given without `decrementFactor`, Df follows from it. */
-      faultDuration: z.number().positive('مدت زمان خطا باید مثبت باشد'),
-      splitFactor: z
-        .number()
-        .positive('ضریب تقسیم باید مثبت باشد')
-        .max(1, 'ضریب تقسیم حداکثر ۱ است'),
-      decrementFactor: z.number().min(1, 'ضریب کاهشی باید حداقل ۱ باشد'),
+      faultCurrent: z.number().optional(),
+      faultDuration: z.number().optional(),
+      splitFactor: z.number().optional(),
+      decrementFactor: z.number().optional(),
+      shockDuration: z.number().optional(),
     })
-    .partial()
     .optional(),
 
   settings: z
     .object({
-      surfaceLayerResistivity: z.number().min(0),
-      surfaceLayerThickness: z.number().min(0),
-      bodyWeight: z.number().positive(),
-      frequency: z.number().positive(),
+      surfaceLayerResistivity: z.number().optional(),
+      surfaceLayerThickness: z.number().optional(),
+      bodyWeight: z.number().optional(),
+      frequency: z.number().optional(),
     })
-    .partial()
     .optional(),
 });
 
