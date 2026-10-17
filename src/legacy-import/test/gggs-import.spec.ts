@@ -6,6 +6,14 @@ import { GGGS_LAYOUTS, type GggsFileKind } from '../gggs-layouts';
 import { LegacyImportService } from '../legacy-import.service';
 import { RECORD_LENGTH } from '../vb-random-file.reader';
 
+/** Narrows a value the test depends on, failing with a readable message. */
+function required<T>(value: T | null | undefined, what: string): T {
+  if (value === null || value === undefined) {
+    throw new Error(`Expected ${what} to be present`);
+  }
+  return value;
+}
+
 /**
  * Writes a file the way VB6 does: `Put #1, , x` on a file opened `For Random`
  * with the default 128-byte record — one record per variable, a Single as a
@@ -132,7 +140,10 @@ describe('parseGggsFile', () => {
 
   it('the imported grid reproduces the stored Windows Em / Es through the web engine', () => {
     const draft = parseGggsFile(writeVbFile('IEEE_80_2000', design));
-    const payload = draft.grid!.generator!;
+    const payload = required(
+      required(draft.grid, 'the grid').generator,
+      'the generator payload',
+    );
 
     const generated = generateRectangularGrid({
       length: payload.length,
@@ -162,8 +173,8 @@ describe('parseGggsFile', () => {
       },
       fault: {
         faultCurrent: draft.fault.faultCurrent,
-        faultDuration: draft.fault.faultDuration!,
-        splitFactor: draft.fault.splitFactor!,
+        faultDuration: required(draft.fault.faultDuration, 'faultDuration'),
+        splitFactor: required(draft.fault.splitFactor, 'splitFactor'),
         decrementFactor: 1.0,
         shockDuration: draft.fault.shockDuration,
       },
