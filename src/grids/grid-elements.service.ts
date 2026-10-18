@@ -17,6 +17,13 @@ import {
 import { UpdateGridElementDto } from './dto/update-grid-element.dto';
 import { GetGridElementsQueryDTO } from './dto/get-grid-elements-query.dto';
 import { CreateGridSnapshotDto } from './dto/create-grid-snapshot.dto';
+import { GenerateGridDto } from './dto/generate-grid.dto';
+import { toGeneratorParams } from './dto/grid-generator.schema';
+import {
+  generateRectangularGrid,
+  type GeneratedGrid,
+} from 'src/calculations/engine/grid-generator.engine';
+import { isGridElementSnapshotArray } from './utilities';
 
 @Injectable()
 export class GridElementsService {
@@ -114,6 +121,74 @@ export class GridElementsService {
         statusCode: HttpStatus.CREATED,
         messages: 'المان‌ها با موفقیت ذخیره شدند.',
         data: savedElements,
+      };
+    });
+  }
+
+  /**
+   * Generates a regular rectangular grid from parameters (the web
+   * counterpart of the Windows `Autoform` tool) and replaces the grid's
+   * elements with it. The grid's length / width / burial depth are updated
+   * to the generated dimensions in the same transaction, so the layout and
+   * the grid it was generated for are saved together or not at all.
+   */
+  generate(generateGridDto: GenerateGridDto, user: TAuthenticatedUserType) {
+    return asyncFn(async () => {
+      const { gridId, ...generatorInput } = generateGridDto;
+
+      const grid = await this.gridsService.findOwnedOrAdmin(gridId, user);
+      if (!grid) {
+        return {
+          statusCode: HttpStatus.NOT_FOUND,
+          data: null,
+          messages: `شبکه با آیدی: ${gridId} یافت نشد.`,
+        };
+      }
+
+      let generated: GeneratedGrid;
+      try {
+        generated = generateRectangularGrid(toGeneratorParams(generatorInput));
+      } catch (error) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages:
+            error instanceof Error
+              ? error.message
+              : 'تولید شبکه با پارامترهای داده شده ممکن نیست.',
+        };
+      }
+
+      const savedElements =
+        await this.gridElementRepository.manager.transaction(
+          async (manager) => {
+            await manager.update(
+              Grid,
+              { id: gridId },
+              {
+                length: generatorInput.length,
+                width: generatorInput.width,
+                burialDepth: generatorInput.burialDepth,
+              },
+            );
+
+            await manager.delete(GridElement, { grid: { id: gridId } });
+
+            const newElements = generated.elements.map((element) =>
+              manager.create(GridElement, {
+                ...element,
+                grid: { id: gridId },
+              }),
+            );
+
+            return manager.save(GridElement, newElements);
+          },
+        );
+
+      return {
+        statusCode: HttpStatus.CREATED,
+        messages: 'شبکه با موفقیت تولید شد.',
+        data: { elements: savedElements, summary: generated.summary },
       };
     });
   }
@@ -348,13 +423,9 @@ export class GridElementsService {
         };
       }
 
-      // `snapshotData` is server-generated JSON stored as free-form `text`,
-      // but that doesn't guarantee it's still well-formed or shaped like
-      // `GridElement[]` by the time it's restored (e.g. a corrupted row,
-      // or a schema change since the snapshot was taken). Parse and
-      // validate it explicitly with a clear message instead of letting a
-      // malformed row fall through to `asyncFn`'s generic 500, or letting
-      // `.map` run against something that isn't actually an array.
+      // `snapshotData` is stored as free-form `text`, so it may be malformed
+      // or shaped differently by the time it's restored. Parse it as `unknown`
+      // and validate with a type guard so nothing downstream is `any`.
       let parsedSnapshotData: unknown;
       try {
         parsedSnapshotData = JSON.parse(snapshot.snapshotData);
@@ -366,7 +437,7 @@ export class GridElementsService {
         };
       }
 
-      if (!Array.isArray(parsedSnapshotData)) {
+      if (!isGridElementSnapshotArray(parsedSnapshotData)) {
         return {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           data: null,
@@ -374,21 +445,7 @@ export class GridElementsService {
         };
       }
 
-      const isValidElementShape = parsedSnapshotData.every(
-        (element): element is GridElement =>
-          typeof element === 'object' &&
-          element !== null &&
-          'type' in element &&
-          'geometry' in element,
-      );
-      if (!isValidElementShape) {
-        return {
-          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          data: null,
-          messages: 'اطلاعات این نسخه خراب است و قابل بازیابی نیست.',
-        };
-      }
-
+      // Narrowed to GridElementSnapshot[] from here on.
       const restoredElementsData = parsedSnapshotData;
 
       const restoredElements =
