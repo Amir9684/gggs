@@ -103,11 +103,6 @@ export class ReportsController {
     );
     res.setHeader('Content-Type', 'application/pdf');
 
-    console.log('BEFORE SEND', {
-      headers: res.getHeaders(),
-      headersSent: res.headersSent,
-    });
-
     res.sendFile(result.data.filePath, (err) => {
       if (err) {
         console.error('Error sending report file:', err);
@@ -123,16 +118,6 @@ export class ReportsController {
         }
       }
     });
-
-    res.once('finish', () => {
-      console.log('RESPONSE FINISHED', {
-        statusCode: res.statusCode,
-        headersSent: res.headersSent,
-      });
-    });
-
-    res.once('close', () => {
-      console.log('RESPONSE CLOSED');
-    });
   }
 }
+

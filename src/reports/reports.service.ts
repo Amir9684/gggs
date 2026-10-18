@@ -13,6 +13,7 @@ import { ProjectsService } from 'src/projects/projects.service';
 import UserRole from 'src/users/enum';
 
 import { CalculationResult } from 'src/calculations/entities/calculation-result.entity';
+import { CaseConductor } from 'src/calculations/entities/case-conductor.entity';
 import { CaseFault } from 'src/calculations/entities/case-fault.entity';
 import { CaseSetting } from 'src/calculations/entities/case-setting.entity';
 import { TouchVoltageMap } from 'src/calculations/entities/touch-voltage-map.entity';
@@ -22,7 +23,41 @@ import { VoltageProfile } from 'src/calculations/entities/voltage-profile.entity
 import { Report } from './entities/report.entity';
 import { GenerateReportDto } from './dto/generate-report.dto';
 import { GetReportsQueryDTO } from './dto/get-reports-query.dto';
+import { getConductorMaterial } from 'src/calculations/engine/conductor-material.catalog';
+
 import { buildReportPdf } from './pdf/report-pdf.builder';
+import type {
+  ReportConductor,
+  ReportOptions,
+  ReportPdfData,
+} from './pdf/report-pdf.types';
+import { resolveHalfSecondVariant } from './report-options';
+import { chooseReportTemplate } from './report-template';
+
+/** The stored conductor choice plus its material constants, as the PDF prints them. */
+function toReportConductor(conductor: CaseConductor): ReportConductor {
+  const material = getConductorMaterial(conductor.material);
+
+  return {
+    materialName: material.name,
+    alphaR: material.alphaR,
+    k0: material.k0,
+    rhoR: material.rhoR,
+    tcap: material.tcap,
+    ambientTemperature: Number(conductor.ambientTemperature),
+    allowableTemperature: Number(conductor.allowableTemperature),
+    sizingDuration: Number(conductor.sizingDuration),
+    minimumAreaMm2: Number(conductor.minimumAreaMm2),
+    standardSizeMm2:
+      conductor.standardSizeMm2 === null
+        ? null
+        : Number(conductor.standardSizeMm2),
+    crossSectionMm2:
+      conductor.crossSectionMm2 === null
+        ? null
+        : Number(conductor.crossSectionMm2),
+  };
+}
 
 /**
  * Generates a PDF grounding-safety report for a `CalculationResult`
@@ -42,6 +77,8 @@ export class ReportsService {
     private readonly caseFaultRepository: Repository<CaseFault>,
     @InjectRepository(CaseSetting)
     private readonly caseSettingRepository: Repository<CaseSetting>,
+    @InjectRepository(CaseConductor)
+    private readonly caseConductorRepository: Repository<CaseConductor>,
     @InjectRepository(TouchVoltageMap)
     private readonly touchVoltageMapRepository: Repository<TouchVoltageMap>,
     @InjectRepository(StepVoltageMap)
@@ -124,13 +161,38 @@ export class ReportsService {
       }
 
       const { calculationCase } = result;
-      const [fault, settings, touchVoltageMap, stepVoltageMap, voltageProfile] =
+
+      const templateChoice = chooseReportTemplate(
+        dto.template,
+        calculationCase.designMethod,
+        calculationCase.soilLayering,
+      );
+      if (!templateChoice.ok) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: templateChoice.message,
+        };
+      }
+
+      const [
+        fault,
+        settings,
+        conductor,
+        touchVoltageMap,
+        stepVoltageMap,
+        voltageProfile,
+      ] =
         await Promise.all([
           this.caseFaultRepository.findOne({
             where: { calculationCase: { id: calculationCase.id } },
             order: { createdAt: 'DESC' },
           }),
           this.caseSettingRepository.findOne({
+            where: { calculationCase: { id: calculationCase.id } },
+            order: { createdAt: 'DESC' },
+          }),
+          this.caseConductorRepository.findOne({
             where: { calculationCase: { id: calculationCase.id } },
             order: { createdAt: 'DESC' },
           }),
@@ -145,11 +207,30 @@ export class ReportsService {
           }),
         ]);
 
+      const halfSecond = resolveHalfSecondVariant(
+        fault ? Number(fault.faultDuration) : 0,
+        dto.halfSecondVariant,
+      );
+      if (!halfSecond.ok) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: halfSecond.message,
+        };
+      }
+
+      const options: ReportOptions = {
+        includeDetails: dto.includeDetails,
+        halfSecondVariant: halfSecond.value,
+      };
+
       // This is the data source handed to `buildReportPdf` — keep it
       // flat and self-describing rather than mirroring the entity
       // shapes 1:1, since the PDF layout is designed against these
       // field names, not the DB schema.
-      const reportData = {
+      const reportData: ReportPdfData = {
+        template: templateChoice.template,
+        options,
         project: {
           name: project.name,
           substationName: project.substationName,
@@ -191,6 +272,7 @@ export class ReportsService {
               frequency: settings.frequency,
             }
           : null,
+        conductor: conductor ? toReportConductor(conductor) : null,
         result: {
           gridResistance: Number(result.gridResistance),
           gpr: Number(result.gpr),
@@ -201,6 +283,7 @@ export class ReportsService {
           permissibleStepVoltage: Number(result.permissibleStepVoltage),
           safe: result.safe,
         },
+        details: result.details ?? null,
         charts: {
           touchVoltageMap: touchVoltageMap.map((p) => ({
             x: Number(p.x),
@@ -233,6 +316,8 @@ export class ReportsService {
         result: { id: result.id },
         name: dto.name?.trim() || calculationCase.name,
         filePath,
+        template: templateChoice.template,
+        options,
       });
       const savedReport = await this.reportRepository.save(newReport);
 
@@ -382,3 +467,4 @@ export class ReportsService {
     });
   }
 }
+

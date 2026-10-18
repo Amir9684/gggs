@@ -142,6 +142,12 @@ export function evaluateGroundingSafety(
       ),
       geometricFactors,
       twoLayer: resolvedSoil.twoLayer,
+      apparentResistivity: soil.apparentResistivity,
+      effectiveMeshLength,
+      effectiveStepLength,
+      conductorDiameter: geometry.conductorDiameter,
+      burialDepth: geometry.burialDepth,
     },
   };
 }
+

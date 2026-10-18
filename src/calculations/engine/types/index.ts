@@ -248,5 +248,18 @@ export interface SafetyEvaluationResult {
     grid: GridMeshSummary;
     /** Two-layer soil correction; `null` for uniform soil. */
     twoLayer: TwoLayerSoilCorrection | null;
+    /**
+     * Soil resistivity ρ used for Rg and GPR (Ω·m). Optional: results
+     * saved before the reports got per-method templates don't have it.
+     */
+    apparentResistivity?: number;
+    /** Effective buried length for the mesh voltage, Lm (m). Optional, same reason. */
+    effectiveMeshLength?: number;
+    /** Effective buried length for the step voltage, Ls (m). Optional, same reason. */
+    effectiveStepLength?: number;
+    /** Conductor diameter d (m) and burial depth h (m) the factors were computed with. Optional, same reason. */
+    conductorDiameter?: number;
+    burialDepth?: number;
   };
 }
+

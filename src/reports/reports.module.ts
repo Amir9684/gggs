@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ProjectsModule } from 'src/projects/projects.module';
 import { CalculationResult } from 'src/calculations/entities/calculation-result.entity';
+import { CaseConductor } from 'src/calculations/entities/case-conductor.entity';
 import { CaseFault } from 'src/calculations/entities/case-fault.entity';
 import { CaseSetting } from 'src/calculations/entities/case-setting.entity';
 import { TouchVoltageMap } from 'src/calculations/entities/touch-voltage-map.entity';
@@ -26,6 +27,7 @@ import { ReportsController } from './reports.controller';
       CalculationResult,
       CaseFault,
       CaseSetting,
+      CaseConductor,
       TouchVoltageMap,
       StepVoltageMap,
       VoltageProfile,
@@ -37,3 +39,4 @@ import { ReportsController } from './reports.controller';
   exports: [ReportsService],
 })
 export class ReportsModule {}
+

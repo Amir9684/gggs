@@ -161,6 +161,12 @@ export function evaluateGroundingSafety1986(
         kiStep: geometricFactors1986.kiStep,
       },
       twoLayer: resolvedSoil.twoLayer,
+      apparentResistivity: soil.apparentResistivity,
+      effectiveMeshLength,
+      effectiveStepLength,
+      conductorDiameter: geometry.conductorDiameter,
+      burialDepth: geometry.burialDepth,
     },
   };
 }
+

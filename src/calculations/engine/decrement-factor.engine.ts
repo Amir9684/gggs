@@ -14,7 +14,7 @@
  * larger (more conservative) Df, e.g. 0.3 s uses the 0.25 s row (1.1) and
  * 0.05 s uses the 0.008 s row (1.65).
  */
-const DECREMENT_FACTOR_TABLE: ReadonlyArray<{
+export const DECREMENT_FACTOR_TABLE: ReadonlyArray<{
   fromSeconds: number;
   factor: number;
 }> = [
@@ -36,3 +36,4 @@ export function deriveDecrementFactor(faultDuration: number): number {
   // The last row starts at 0, so any positive duration always matches.
   return row!.factor;
 }
+
