@@ -6,6 +6,14 @@ import {
 } from '../grid-generator.engine';
 import { extractGridGeometry } from '../grid-geometry.extractor';
 
+/** Narrows a value the test depends on, failing with a readable message. */
+function required<T>(value: T | null | undefined, what: string): T {
+  if (value === null || value === undefined) {
+    throw new Error(`Expected ${what} to be present`);
+  }
+  return value;
+}
+
 const base = (
   over: Partial<GridGeneratorParams> = {},
 ): GridGeneratorParams => ({
@@ -34,13 +42,19 @@ describe('generateRectangularGrid', () => {
     const grid = generateRectangularGrid(
       base({ rods: { arrangement: 'CORNERS', count: 4, length: 3 } }),
     );
-    const conductor = grid.elements.find((e) => e.type === 0)!;
-    const rod = grid.elements.find((e) => e.type === 1)!;
+    const conductor = required(
+      grid.elements.find((e) => e.type === 0),
+      'a conductor',
+    );
+    const rod = required(
+      grid.elements.find((e) => e.type === 1),
+      'a rod',
+    );
 
-    expect(conductor.properties).toEqual({
-      material: 'COPPER_ANNEALED_SOFT_DRAWN',
-      crossSectionMm2: expect.closeTo(78.53982, 4),
-    });
+    const { crossSectionMm2, ...conductorRest } = conductor.properties;
+    expect(conductorRest).toEqual({ material: 'COPPER_ANNEALED_SOFT_DRAWN' });
+    expect(crossSectionMm2).toBeCloseTo(78.53982, 4);
+
     expect(rod.properties).toEqual({ lengthM: 3, diameterMm: 16 });
   });
 
@@ -78,7 +92,9 @@ describe('generateRectangularGrid', () => {
       );
       const rodPoints = grid.elements
         .filter((e) => e.type === 1)
-        .map((e) => (e.geometry as { coordinates: number[] }).coordinates);
+        .flatMap((e) =>
+          e.geometry.type === 'Point' ? [e.geometry.coordinates] : [],
+        );
       expect(rodPoints).toHaveLength(8);
       expect(new Set(rodPoints.map((p) => p.join(','))).size).toBe(8);
       expect(rodPoints.slice(0, 4)).toEqual([

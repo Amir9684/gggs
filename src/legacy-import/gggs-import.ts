@@ -121,7 +121,15 @@ export function parseGggsFile(
     throw error;
   }
 
-  const num = (name: string) => fields[name] as number;
+  const num = (name: string): number => {
+    const value = fields[name];
+    if (typeof value !== 'number') {
+      throw new LegacyImportError(
+        `The field "${name}" is missing or not numeric in this ${kind} file.`,
+      );
+    }
+    return value;
+  };
   const warnings: string[] = [];
 
   // ---- fault duration (option buttons) ----

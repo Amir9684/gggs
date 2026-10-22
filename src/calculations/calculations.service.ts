@@ -26,6 +26,11 @@ import { CreateCalculationCaseDto } from './dto/create-calculation-case.dto';
 import { UpdateCalculationCaseDto } from './dto/update-calculation-case.dto';
 import { GetCalculationCasesQueryDTO } from './dto/get-calculation-cases-query.dto';
 import { PreviewCalculationDto } from './dto/preview-calculation.dto';
+import { toGeneratorParams } from 'src/grids/dto/grid-generator.schema';
+import {
+  generateRectangularGrid,
+  type GeneratedGrid,
+} from './engine/grid-generator.engine';
 import {
   DesignMethod,
   IMPLEMENTED_DESIGN_METHODS,
@@ -1084,7 +1089,9 @@ export class CalculationsService {
    * for the same inputs.
    *
    * Overrides (all optional, never persisted): grid dimensions, the
-   * editor's unsaved elements, and fault / settings values. When the fault
+   * editor's unsaved elements, generator parameters for a parametric grid
+   * (the layout is then generated and returned as `generated`, and the
+   * stored elements are not read), and fault / settings values. When the fault
    * duration is overridden without a decrement factor, Df is re-derived
    * from the new duration, as on the case form.
    */
@@ -1104,6 +1111,25 @@ export class CalculationsService {
         };
       }
 
+      const generatorParams = previewDto.grid;
+      let generatedGrid: GeneratedGrid | null = null;
+      if (generatorParams && 'conductorDiameter' in generatorParams) {
+        try {
+          generatedGrid = generateRectangularGrid(
+            toGeneratorParams(generatorParams),
+          );
+        } catch (error) {
+          return {
+            statusCode: HttpStatus.BAD_REQUEST,
+            data: null,
+            messages:
+              error instanceof Error
+                ? error.message
+                : 'تولید شبکه با پارامترهای داده شده ممکن نیست.',
+          };
+        }
+      }
+
       const [fault, settings, savedElements, layers] = await Promise.all([
         this.caseFaultRepository.findOne({
           where: { calculationCase: { id } },
@@ -1115,7 +1141,7 @@ export class CalculationsService {
           order: { createdAt: 'DESC' },
         }),
 
-        previewDto.elements
+        previewDto.elements || generatedGrid
           ? Promise.resolve<GridElementLike[]>([])
           : this.gridElementRepository.find({
               where: { grid: { id: calculationCase.grid.id } },
@@ -1138,10 +1164,21 @@ export class CalculationsService {
 
       const definedOnly = <T extends object>(
         values: T | undefined,
-      ): Partial<T> =>
-        Object.fromEntries(
-          Object.entries(values ?? {}).filter(([, v]) => v !== undefined),
-        ) as Partial<T>;
+      ): Partial<T> => {
+        const defined: Partial<T> = {};
+        if (values === undefined) {
+          return defined;
+        }
+        for (const key in values) {
+          if (
+            Object.prototype.hasOwnProperty.call(values, key) &&
+            values[key] !== undefined
+          ) {
+            defined[key] = values[key];
+          }
+        }
+        return defined;
+      };
 
       const faultOverrides = definedOnly(previewDto.fault);
       const previewFault: CaseFaultInput = { ...fault, ...faultOverrides };
@@ -1168,12 +1205,18 @@ export class CalculationsService {
             length: Number(calculationCase.grid.length),
             width: Number(calculationCase.grid.width),
             burialDepth: Number(calculationCase.grid.burialDepth),
-            ...definedOnly(previewDto.grid),
+            ...(generatorParams && 'conductorDiameter' in generatorParams
+              ? {
+                  length: generatorParams.length,
+                  width: generatorParams.width,
+                  burialDepth: generatorParams.burialDepth,
+                }
+              : definedOnly(generatorParams)),
           },
         },
         previewFault,
         previewSettings,
-        previewDto.elements ?? savedElements,
+        generatedGrid?.elements ?? previewDto.elements ?? savedElements,
         layers,
       );
       if ('statusCode' in outcome) {
@@ -1205,6 +1248,7 @@ export class CalculationsService {
             totalRodLength: geometry.totalRodLength,
           },
           details: evaluation.details,
+          generated: generatedGrid?.summary ?? null,
         },
       };
     });

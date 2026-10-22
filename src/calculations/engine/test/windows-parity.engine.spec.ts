@@ -2,6 +2,14 @@ import { evaluateGroundingSafety } from '../safety-evaluation.engine';
 import { evaluateGroundingSafety1986 } from '../safety-evaluation-1986.engine';
 import type { SafetyEvaluationInput } from '../types';
 
+/** Narrows a value the test depends on, failing with a readable message. */
+function required<T>(value: T | null | undefined, what: string): T {
+  if (value === null || value === undefined) {
+    throw new Error(`Expected ${what} to be present`);
+  }
+  return value;
+}
+
 /**
  * Parity with the Windows GGGS IEEE 80-2000 design forms.
  *
@@ -145,18 +153,20 @@ describe('IEEE 80-86 two-layer path', () => {
       input(perimeter, twoLayer(100, 300, 2)),
     );
 
-    const correction = layered.details.twoLayer;
-    expect(correction).not.toBeNull();
+    const correction = required(
+      layered.details.twoLayer,
+      'the two-layer correction',
+    );
     // same rho1 = 100 and same geometry: Em / Es scale by exactly Cm / Cs
     expect(layered.meshVoltage / uniform.meshVoltage).toBeCloseTo(
-      correction!.meshCorrection,
+      correction.meshCorrection,
       9,
     );
     expect(layered.stepVoltage / uniform.stepVoltage).toBeCloseTo(
-      correction!.stepCorrection,
+      correction.stepCorrection,
       9,
     );
-    expect(correction!.meshCorrection).toBeCloseTo(1.306538, 5);
+    expect(correction.meshCorrection).toBeCloseTo(1.306538, 5);
   });
 
   it('reports no correction for uniform soil', () => {

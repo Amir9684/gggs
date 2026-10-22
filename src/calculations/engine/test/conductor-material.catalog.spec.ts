@@ -55,6 +55,7 @@ describe('conductor material catalog', () => {
   });
 
   it('throws for an unknown material id', () => {
-    expect(() => getConductorMaterial('NOPE' as ConductorMaterial)).toThrow();
+    // @ts-expect-error -- deliberately outside the `ConductorMaterial` enum
+    expect(() => getConductorMaterial('NOPE')).toThrow();
   });
 });

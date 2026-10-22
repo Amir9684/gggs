@@ -6,7 +6,7 @@ import { HttpStatus } from 'src/common/types';
 
 import { SoniCalculateDto } from './dto/soni-calculate.dto';
 import { abs, type Complex } from './engine/complex';
-import { computeSoniSplitFactor } from './engine/soni.engine';
+import { computeSoniSplitFactor, SoniResult } from './engine/soni.engine';
 import { GroundWiresService } from './ground-wires.service';
 import {
   buildSoniInput,
@@ -53,7 +53,7 @@ export class SplitFactorService {
         wires.set(id, wire);
       }
 
-      let result;
+      let result: SoniResult;
       try {
         result = computeSoniSplitFactor(buildSoniInput(dto, wires));
       } catch (error) {

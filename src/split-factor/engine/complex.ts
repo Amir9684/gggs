@@ -69,7 +69,8 @@ export function solveLinearSystem(
   // singular up to rounding is still caught.
   let scaleOfMatrix = 0;
   for (const row of a) {
-    for (const value of row) scaleOfMatrix = Math.max(scaleOfMatrix, abs(value));
+    for (const value of row)
+      scaleOfMatrix = Math.max(scaleOfMatrix, abs(value));
   }
   const tolerance = scaleOfMatrix * 1e-13;
 

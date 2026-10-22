@@ -1,11 +1,9 @@
 import { DesignMethod, SoilLayeringMethod } from 'src/calculations/enum';
 
 import { buildReportPdf } from '../pdf/report-pdf.builder';
-import type {
-  ReportDetails,
-  ReportPdfData,
-} from '../pdf/report-pdf.types';
+import type { ReportDetails, ReportPdfData } from '../pdf/report-pdf.types';
 import { ReportTemplate } from '../report-template';
+import type { ConcreteReportTemplate } from '../report-template';
 
 /**
  * Every string the builder draws, in order. `jest.mock` factories may
@@ -202,18 +200,36 @@ async function build(data: ReportPdfData): Promise<Buffer> {
 
 describe('buildReportPdf', () => {
   it('builds every template without throwing', async () => {
-    const cases: Array<[ReportTemplate, DesignMethod, SoilLayeringMethod]> = [
-      [ReportTemplate.IEEE_80_86_ONE_LAYER, DesignMethod.IEEE_80_86, SoilLayeringMethod.ONE_LAYER],
-      [ReportTemplate.IEEE_80_86_TWO_LAYER, DesignMethod.IEEE_80_86, SoilLayeringMethod.TWO_LAYER],
-      [ReportTemplate.IEEE_80_2000_ONE_LAYER, DesignMethod.IEEE_80_2000, SoilLayeringMethod.ONE_LAYER],
-      [ReportTemplate.IEEE_80_2000_TWO_LAYER, DesignMethod.IEEE_80_2000, SoilLayeringMethod.TWO_LAYER],
+    const cases: Array<
+      [ConcreteReportTemplate, DesignMethod, SoilLayeringMethod]
+    > = [
+      [
+        ReportTemplate.IEEE_80_86_ONE_LAYER,
+        DesignMethod.IEEE_80_86,
+        SoilLayeringMethod.ONE_LAYER,
+      ],
+      [
+        ReportTemplate.IEEE_80_86_TWO_LAYER,
+        DesignMethod.IEEE_80_86,
+        SoilLayeringMethod.TWO_LAYER,
+      ],
+      [
+        ReportTemplate.IEEE_80_2000_ONE_LAYER,
+        DesignMethod.IEEE_80_2000,
+        SoilLayeringMethod.ONE_LAYER,
+      ],
+      [
+        ReportTemplate.IEEE_80_2000_TWO_LAYER,
+        DesignMethod.IEEE_80_2000,
+        SoilLayeringMethod.TWO_LAYER,
+      ],
     ];
 
     for (const [template, designMethod, soilLayering] of cases) {
       const twoLayer = soilLayering === SoilLayeringMethod.TWO_LAYER;
       const buffer = await build(
         makeData({
-          template: template as ReportPdfData['template'],
+          template,
           designMethod,
           soilLayering,
           details: {
@@ -318,7 +334,9 @@ describe('buildReportPdf', () => {
 
   it('skips the detail and methodology pages when details are off', async () => {
     await build(
-      makeData({ options: { includeDetails: false, halfSecondVariant: false } }),
+      makeData({
+        options: { includeDetails: false, halfSecondVariant: false },
+      }),
     );
     expect(has('روش محاسبه')).toBe(false);
     expect(has('هندسهٔ شبکه')).toBe(false);
@@ -331,7 +349,9 @@ describe('buildReportPdf', () => {
     await build(makeData());
     const withDetails = mockPageCount;
     await build(
-      makeData({ options: { includeDetails: false, halfSecondVariant: false } }),
+      makeData({
+        options: { includeDetails: false, halfSecondVariant: false },
+      }),
     );
     expect(mockPageCount).toBeLessThan(withDetails);
   });

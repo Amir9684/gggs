@@ -1,6 +1,8 @@
-import { type INestApplication } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import type { App } from 'supertest/types';
+import { z } from 'zod';
 
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -8,8 +10,13 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { LegacyImportController } from './legacy-import.controller';
 import { LegacyImportService } from './legacy-import.service';
 
+const failureBodySchema = z.object({
+  statusCode: z.number(),
+  messages: z.array(z.string()),
+});
+
 describe('POST /legacy-import/gggs/parse', () => {
-  let app: INestApplication;
+  let app: INestApplication<App>;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -31,9 +38,7 @@ describe('POST /legacy-import/gggs/parse', () => {
   });
 
   const post = () =>
-    request(app.getHttpServer() as Parameters<typeof request>[0]).post(
-      '/legacy-import/gggs/parse',
-    );
+    request(app.getHttpServer()).post('/legacy-import/gggs/parse');
 
   it('reads the multipart `file` field', async () => {
     const response = await post().attach(
@@ -42,14 +47,14 @@ describe('POST /legacy-import/gggs/parse', () => {
       'site.gggs',
     );
 
-    const body = response.body as { statusCode: number; messages: string[] };
+    const body = failureBodySchema.parse(response.body);
     expect(body.statusCode).toBe(400);
     expect(body.messages[0]).toContain('GGGS');
   });
 
   it('reports a missing file instead of crashing', async () => {
     const response = await post();
-    const body = response.body as { statusCode: number };
+    const body = failureBodySchema.parse(response.body);
     expect(body.statusCode).toBe(400);
   });
 });

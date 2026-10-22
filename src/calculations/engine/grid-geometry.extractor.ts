@@ -1,4 +1,4 @@
-import type { Geometry, LineString, Point, Position } from 'geojson';
+import type { Geometry, Position } from 'geojson';
 
 import type { GridGeometrySummary } from './types';
 
@@ -135,18 +135,27 @@ export function extractGridGeometry(
   grid: { length: number; width: number; burialDepth: number },
   elements: GridElementLike[],
 ): GridGeometrySummary {
-  const conductorElements = elements.filter(
-    (e) =>
+  // Split by geometry in one pass so the narrowed `LineString` / `Point`
+  // coordinates are read directly instead of asserted.
+  const conductorElements: GridElementLike[] = [];
+  const conductorLines: Position[][] = [];
+  const rodElements: GridElementLike[] = [];
+  const rodPositions: Position[] = [];
+  for (const e of elements) {
+    if (
       e.type === GRID_ELEMENT_TYPE.CONDUCTOR &&
-      e.geometry.type === 'LineString',
-  );
-  const rodElements = elements.filter(
-    (e) => e.type === GRID_ELEMENT_TYPE.ROD && e.geometry.type === 'Point',
-  );
-
-  const conductorLines = conductorElements.map(
-    (e) => (e.geometry as LineString).coordinates,
-  );
+      e.geometry.type === 'LineString'
+    ) {
+      conductorElements.push(e);
+      conductorLines.push(e.geometry.coordinates);
+    } else if (
+      e.type === GRID_ELEMENT_TYPE.ROD &&
+      e.geometry.type === 'Point'
+    ) {
+      rodElements.push(e);
+      rodPositions.push(e.geometry.coordinates);
+    }
+  }
 
   const totalConductorLength = conductorLines.reduce(
     (sum, line) => sum + lineLength(line),
@@ -193,8 +202,7 @@ export function extractGridGeometry(
   );
 
   const perimeterToleranceM = Math.min(grid.length, grid.width) * 0.05;
-  const hasPerimeterRods = rodElements.some((e) => {
-    const [x, y] = (e.geometry as Point).coordinates;
+  const hasPerimeterRods = rodPositions.some(([x, y]) => {
     return (
       x <= perimeterToleranceM ||
       y <= perimeterToleranceM ||

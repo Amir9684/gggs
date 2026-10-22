@@ -23,7 +23,11 @@ export class GroundWire extends BaseEntity {
   dcResistance: number;
 
   /** Geometric mean radius, GMR (m). */
-  @Column('decimal', { precision: 12, scale: 6, transformer: decimalTransformer })
+  @Column('decimal', {
+    precision: 12,
+    scale: 6,
+    transformer: decimalTransformer,
+  })
   gmr: number;
 
   /** Internal reactance (ohm/km), used when the reactance is not taken from the GMR. */

@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- fixtures assert on loosely typed geometry */
+import type { Geometry, Position } from 'geojson';
+
 import { ConductorMaterial } from '../calculations/enum';
 import {
   LegacyGgggsError,
@@ -180,8 +182,16 @@ for (const y of [1, 11, 21]) {
   for (const x of [1, 11, 21]) square.push([x, y]);
 }
 
-const lengthOf = (line: [number, number][]) =>
+const lengthOf = (line: Position[]) =>
   Math.hypot(line[1][0] - line[0][0], line[1][1] - line[0][1]);
+
+/** The vertices of a conductor; fails the test if it is not a line. */
+const lineOf = (geometry: Geometry): Position[] => {
+  if (geometry.type !== 'LineString') {
+    throw new Error(`Expected a LineString, got ${geometry.type}`);
+  }
+  return geometry.coordinates;
+};
 
 describe('parseLegacyGggs — full format', () => {
   const result = parseLegacyGggs(
@@ -220,9 +230,7 @@ describe('parseLegacyGggs — full format', () => {
     expect(conductors).toHaveLength(6);
     for (const conductor of conductors) {
       expect(conductor.geometry.type).toBe('LineString');
-      expect(
-        lengthOf(conductor.geometry.coordinates as [number, number][]),
-      ).toBeCloseTo(20, 6);
+      expect(lengthOf(lineOf(conductor.geometry))).toBeCloseTo(20, 6);
     }
   });
 
@@ -303,7 +311,7 @@ describe('parseLegacyGggs — details', () => {
     const result = parseLegacyGggs(fullFile({ nodes: lShape }));
     const spans = result.elements
       .filter((e) => e.type === 0)
-      .map((e) => lengthOf(e.geometry.coordinates as [number, number][]))
+      .map((e) => lengthOf(lineOf(e.geometry)))
       .sort((a, b) => a - b);
     // rows: 20, 10 (y = 1, 11); columns: 20, 10 (x = 1, 11)
     expect(spans).toEqual([10, 10, 20, 20]);

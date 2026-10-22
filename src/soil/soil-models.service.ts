@@ -9,6 +9,7 @@ import { ProjectsService } from 'src/projects/projects.service';
 import UserRole from 'src/users/enum';
 
 import { SoilModel } from './entities/soil-model.entity';
+import { SoilLayer } from './entities/soil-layer.entity';
 import { CalculationCase } from 'src/calculations/entities/calculation-case.entity';
 import { CreateSoilModelDto } from './dto/create-soil-model.dto';
 import { UpdateSoilModelDto } from './dto/update-soil-model.dto';
@@ -197,13 +198,13 @@ export class SoilModelsService {
       // explicitly replaced here.
       if (layers) {
         soilModel.layers = layers.map((layer) =>
-          layer.id
-            ? Object.assign(
-                existingSoilModel.layers.find((l) => l.id === layer.id) ?? {},
-                layer,
-              )
-            : layer,
-        ) as SoilModel['layers'];
+          Object.assign(
+            (layer.id
+              ? existingSoilModel.layers.find((l) => l.id === layer.id)
+              : undefined) ?? new SoilLayer(),
+            layer,
+          ),
+        );
       }
 
       const updatedSoilModel = await this.soilModelRepository.save(soilModel);

@@ -50,7 +50,9 @@ describe('solveLinearSystem', () => {
   });
 
   it('rejects a non-square system', () => {
-    expect(() => solveLinearSystem([[complex(1)]], [complex(1), complex(2)])).toThrow();
+    expect(() =>
+      solveLinearSystem([[complex(1)]], [complex(1), complex(2)]),
+    ).toThrow();
   });
 });
 

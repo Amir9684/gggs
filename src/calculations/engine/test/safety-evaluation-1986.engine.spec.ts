@@ -2,6 +2,14 @@ import { evaluateGroundingSafety1986 } from '../safety-evaluation-1986.engine';
 import { evaluateGroundingSafety } from '../safety-evaluation.engine';
 import type { SafetyEvaluationInput } from '../types';
 
+/** Narrows a value the test depends on, failing with a readable message. */
+function required<T>(value: T | null | undefined, what: string): T {
+  if (value === null || value === undefined) {
+    throw new Error(`Expected ${what} to be present`);
+  }
+  return value;
+}
+
 function baseInput(
   overrides: Partial<SafetyEvaluationInput> = {},
 ): SafetyEvaluationInput {
@@ -112,15 +120,11 @@ describe('evaluateGroundingSafety1986', () => {
       0.644 + 0.148 * geometricFactors.n,
       9,
     );
-    expect(geometricFactors.kiStep).toBeCloseTo(
-      0.644 + 0.148 * (geometricFactors.nStep as number),
-      9,
-    );
+    const nStep = required(geometricFactors.nStep, 'nStep');
+    const kiStep = required(geometricFactors.kiStep, 'kiStep');
+    expect(kiStep).toBeCloseTo(0.644 + 0.148 * nStep, 9);
     // The two Ki's genuinely differ here, unlike the 2013 method.
-    expect(geometricFactors.ki).not.toBeCloseTo(
-      geometricFactors.kiStep as number,
-      3,
-    );
+    expect(geometricFactors.ki).not.toBeCloseTo(kiStep, 3);
   });
 
   it('safe is true only when both mesh and step voltages are within their permissible limits', () => {

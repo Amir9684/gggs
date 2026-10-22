@@ -1,6 +1,7 @@
 import { computeGroundWireImpedance } from './engine/ground-wire-impedance.engine';
 import type { SoniInput } from './engine/soni.engine';
 import type { SoniCalculateInput } from './dto/soni-calculate.dto';
+import { Complex } from './engine/complex';
 
 /** The catalog fields the impedance computation needs. */
 export interface CatalogWire {
@@ -24,7 +25,7 @@ export function buildSoniInput(
     gridResistance: request.gridResistance,
     terminals: request.terminals.map((terminal) => {
       const source = terminal.groundWire;
-      let groundWireImpedance;
+      let groundWireImpedance: Complex;
 
       if (source.source === 'DIRECT') {
         groundWireImpedance = source.impedance;

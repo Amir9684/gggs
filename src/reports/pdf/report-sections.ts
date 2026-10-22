@@ -66,12 +66,10 @@ export function headerBlock(doc: Doc, data: ReportPdfData): void {
       width: CONTENT_WIDTH,
       align: 'right',
     });
-  doc.text(
-    REPORT_TEMPLATE_LABELS_FA[data.template],
-    PAGE_MARGIN,
-    doc.y + 2,
-    { width: CONTENT_WIDTH, align: 'right' },
-  );
+  doc.text(REPORT_TEMPLATE_LABELS_FA[data.template], PAGE_MARGIN, doc.y + 2, {
+    width: CONTENT_WIDTH,
+    align: 'right',
+  });
   doc.moveDown(1);
 }
 
@@ -144,11 +142,7 @@ export function inputSections(doc: Doc, data: ReportPdfData): void {
       'مقاومت ویژه لایه سطحی',
       `${n(data.settings.surfaceLayerResistivity)} ${OHM_METER}`,
     );
-    row(
-      doc,
-      'ضخامت لایه سطحی',
-      `${n(data.settings.surfaceLayerThickness)} m`,
-    );
+    row(doc, 'ضخامت لایه سطحی', `${n(data.settings.surfaceLayerThickness)} m`);
     row(doc, 'وزن بدن', `${n(data.settings.bodyWeight, 0)} kg`);
     row(doc, 'فرکانس شبکه', `${n(data.settings.frequency, 0)} Hz`);
   }
@@ -225,11 +219,7 @@ export function conductorSection(doc: Doc, data: ReportPdfData): void {
   sectionTitle(doc, 'هادی و مقطع مورد نیاز');
   row(doc, 'جنس هادی', conductor.materialName);
   row(doc, 'دمای محیط (Ta)', `${n(conductor.ambientTemperature, 0)} °C`);
-  row(
-    doc,
-    'دمای مجاز هادی (Tm)',
-    `${n(conductor.allowableTemperature, 0)} °C`,
-  );
+  row(doc, 'دمای مجاز هادی (Tm)', `${n(conductor.allowableTemperature, 0)} °C`);
   row(doc, 'زمان عبور جریان (tc)', `${n(conductor.sizingDuration)} s`);
   row(doc, 'ضریب حرارتی مقاومت (αr)', conductor.alphaR.toString());
   row(doc, 'ثابت K0', `${n(conductor.k0, 0)} °C`);
@@ -281,7 +271,11 @@ export function electricalSection(
 ): void {
   sectionTitle(doc, 'مقاومت شبکه و افزایش پتانسیل زمین');
   if (details.apparentResistivity !== undefined) {
-    row(doc, 'مقاومت ویژه ظاهری خاک (ρ)', `${n(details.apparentResistivity)} ${OHM_METER}`);
+    row(
+      doc,
+      'مقاومت ویژه ظاهری خاک (ρ)',
+      `${n(details.apparentResistivity)} ${OHM_METER}`,
+    );
   }
   row(doc, 'مقاومت شبکه (Rg)', `${n(data.result.gridResistance, 3)} ${OHM}`);
   row(doc, 'جریان مؤثر شبکه (IG)', `${n(details.effectiveGridCurrent)} A`);
@@ -369,25 +363,33 @@ export function geometrySection(
   if (details.conductorDiameter !== undefined) {
     row(doc, 'قطر هادی (d)', `${n(details.conductorDiameter, 4)} m`);
   }
-  row(doc, 'عمق دفن (h)', `${n(details.burialDepth ?? data.grid.burialDepth)} m`);
+  row(
+    doc,
+    'عمق دفن (h)',
+    `${n(details.burialDepth ?? data.grid.burialDepth)} m`,
+  );
   row(doc, 'طول کل هادی افقی (Lc)', `${n(grid.totalConductorLength)} m`);
   row(doc, 'تعداد میله ارت', n(grid.rodCount, 0));
   row(doc, 'طول کل میله‌ها (LR)', `${n(grid.totalRodLength)} m`);
   if (details.effectiveMeshLength !== undefined) {
-    row(doc, 'طول مؤثر برای ولتاژ مش (Lm)', `${n(details.effectiveMeshLength)} m`);
+    row(
+      doc,
+      'طول مؤثر برای ولتاژ مش (Lm)',
+      `${n(details.effectiveMeshLength)} m`,
+    );
   }
   if (details.effectiveStepLength !== undefined) {
-    row(doc, 'طول مؤثر برای ولتاژ گام (Ls)', `${n(details.effectiveStepLength)} m`);
+    row(
+      doc,
+      'طول مؤثر برای ولتاژ گام (Ls)',
+      `${n(details.effectiveStepLength)} m`,
+    );
   }
 
   sectionTitle(doc, 'ضرایب هندسی');
   if (ieee86) {
     row(doc, 'تعداد مؤثر هادی برای مش (n = nx·ny)', n(factors.n, 2));
-    row(
-      doc,
-      'تعداد مؤثر هادی برای گام (n = max(nx, ny))',
-      n(factors.nStep, 2),
-    );
+    row(doc, 'تعداد مؤثر هادی برای گام (n = max(nx, ny))', n(factors.nStep, 2));
   } else {
     row(doc, 'تعداد مؤثر هادی (n)', n(factors.n, 3));
   }
@@ -437,7 +439,11 @@ export function twoLayerSection(
   const thinUpperLayer = correction.xhor !== 0;
 
   row(doc, 'ضخامت لایه بالایی (hs)', `${n(correction.upperThickness)} m`);
-  row(doc, 'نسبت ρ2/ρ1', n(correction.lowerResistivity / correction.upperResistivity, 4));
+  row(
+    doc,
+    'نسبت ρ2/ρ1',
+    n(correction.lowerResistivity / correction.upperResistivity, 4),
+  );
 
   let xhorLines: string[];
   let yhorLines: string[];
@@ -664,4 +670,3 @@ export function footerBlock(doc: Doc, data: ReportPdfData): void {
       { width: CONTENT_WIDTH, align: 'right' },
     );
 }
-

@@ -102,10 +102,13 @@ const IEEE_80_2000_TWO_LAYER_LAYOUT: Layout = [
   { name: 'meshCount', type: 'Single' },
 ];
 
-export type GggsFileKind =
-  | 'GROUNDING_INPUT'
-  | 'IEEE_80_2000'
-  | 'IEEE_80_2000_TWO_LAYER';
+export const GGGS_FILE_KINDS = [
+  'GROUNDING_INPUT',
+  'IEEE_80_2000',
+  'IEEE_80_2000_TWO_LAYER',
+] as const;
+
+export type GggsFileKind = (typeof GGGS_FILE_KINDS)[number];
 
 export const GGGS_LAYOUTS: Record<GggsFileKind, Layout> = {
   GROUNDING_INPUT: GROUNDING_BLOCK,
@@ -125,7 +128,7 @@ export const FAULT_DURATION_OPTIONS = [
 export function detectKindByRecordCount(
   recordCount: number,
 ): GggsFileKind | null {
-  const match = (Object.keys(GGGS_LAYOUTS) as GggsFileKind[]).find(
+  const match = GGGS_FILE_KINDS.find(
     (kind) => GGGS_LAYOUTS[kind].length === recordCount,
   );
   return match ?? null;

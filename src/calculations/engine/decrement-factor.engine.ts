@@ -36,4 +36,3 @@ export function deriveDecrementFactor(faultDuration: number): number {
   // The last row starts at 0, so any positive duration always matches.
   return row!.factor;
 }
-

@@ -1,10 +1,21 @@
 import { computeGroundWireImpedance } from '../engine/ground-wire-impedance.engine';
 import type { SoniCalculateInput } from '../dto/soni-calculate.dto';
-import { buildSoniInput, requestedWireIds, type CatalogWire } from '../soni-input.builder';
+import {
+  buildSoniInput,
+  requestedWireIds,
+  type CatalogWire,
+} from '../soni-input.builder';
 
-const wire: CatalogWire = { acResistance: 0.5, dcResistance: 0.45, gmr: 0.003, reactance: 0.1 };
+const wire: CatalogWire = {
+  acResistance: 0.5,
+  dcResistance: 0.45,
+  gmr: 0.003,
+  reactance: 0.1,
+};
 
-function request(groundWire: SoniCalculateInput['terminals'][number]['groundWire']): SoniCalculateInput {
+function request(
+  groundWire: SoniCalculateInput['terminals'][number]['groundWire'],
+): SoniCalculateInput {
   return {
     gridResistance: 0.4,
     frequency: 50,
@@ -26,7 +37,10 @@ describe('buildSoniInput', () => {
       request({ source: 'DIRECT', impedance: { re: 0.55, im: 0.9 } }),
       new Map(),
     );
-    expect(input.terminals[0].groundWireImpedance).toEqual({ re: 0.55, im: 0.9 });
+    expect(input.terminals[0].groundWireImpedance).toEqual({
+      re: 0.55,
+      im: 0.9,
+    });
     expect(input.gridResistance).toBe(0.4);
   });
 

@@ -156,9 +156,7 @@ export function tableRow(
 
   const y = doc.y;
   if (options.highlight) {
-    doc
-      .rect(PAGE_MARGIN, y - 2, CONTENT_WIDTH, rowHeight + 6)
-      .fill('#fdf0e3');
+    doc.rect(PAGE_MARGIN, y - 2, CONTENT_WIDTH, rowHeight + 6).fill('#fdf0e3');
   }
 
   doc.fillColor(options.color ?? '#333333');

@@ -104,4 +104,3 @@ export function buildReportPdf(data: ReportPdfData): Promise<Buffer> {
     }
   });
 }
-

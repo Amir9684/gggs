@@ -224,7 +224,9 @@ export class ProjectsService {
         return {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
           data: null,
-          messages: ['┘ģž┤┌®┘ä█ī ž»ž▒ ž╣┘ģ┘ä█īž¦ž¬ žŁž░┘ü ž©┘ć ┘łž¼┘łž» žó┘ģž»┘ć ž¦ž│ž¬.'],
+          messages: [
+            '┘ģž┤┌®┘ä█ī ž»ž▒ ž╣┘ģ┘ä█īž¦ž¬ žŁž░┘ü ž©┘ć ┘łž¼┘łž» žó┘ģž»┘ć ž¦ž│ž¬.',
+          ],
         };
       }
 

@@ -1,7 +1,9 @@
-import { INestApplication } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { APP_PIPE } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import type { App } from 'supertest/types';
+import { z } from 'zod';
 
 import { AppZodValidationPipe } from 'src/app/zod-validation-pipe';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -10,21 +12,23 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { ConductorsController } from './conductors.controller';
 import { ConductorsService } from './conductors.service';
 
-interface SizingBody {
-  data: {
-    minimumAreaMm2: number;
-    standardSizeMm2: number | null;
-    allowableTemperature: number;
-  };
-}
+const sizingBodySchema = z.object({
+  data: z.object({
+    minimumAreaMm2: z.number(),
+    standardSizeMm2: z.number().nullable(),
+    allowableTemperature: z.number(),
+  }),
+});
 
-interface MaterialsBody {
-  data: { materials: unknown[]; standardSizesMm2: number[] };
-}
+const materialsBodySchema = z.object({
+  data: z.object({
+    materials: z.array(z.unknown()),
+    standardSizesMm2: z.array(z.number()),
+  }),
+});
 
 describe('ConductorsController (HTTP)', () => {
-  let app: INestApplication;
-  const server = () => app.getHttpServer() as Parameters<typeof request>[0];
+  let app: INestApplication<App>;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -49,16 +53,16 @@ describe('ConductorsController (HTTP)', () => {
   });
 
   it('GET /conductors/materials returns the catalog', async () => {
-    const res = await request(server())
+    const res = await request(app.getHttpServer())
       .get('/conductors/materials')
       .expect(200);
-    const body = res.body as MaterialsBody;
+    const body = materialsBodySchema.parse(res.body);
     expect(body.data.materials).toHaveLength(14);
     expect(body.data.standardSizesMm2).toHaveLength(11);
   });
 
   it('POST /conductors/sizing returns the minimum and standard size', async () => {
-    const res = await request(server())
+    const res = await request(app.getHttpServer())
       .post('/conductors/sizing')
       .send({
         material: 'COPPER_ANNEALED_SOFT_DRAWN',
@@ -66,21 +70,21 @@ describe('ConductorsController (HTTP)', () => {
         duration: 0.5,
       })
       .expect(201);
-    const body = res.body as SizingBody;
+    const body = sizingBodySchema.parse(res.body);
     expect(body.data.minimumAreaMm2).toBeCloseTo(25.1, 1);
     expect(body.data.standardSizeMm2).toBe(35);
     expect(body.data.allowableTemperature).toBe(1083);
   });
 
   it('POST /conductors/sizing rejects an invalid body with 400', async () => {
-    await request(server())
+    await request(app.getHttpServer())
       .post('/conductors/sizing')
       .send({ material: 'NOPE', faultCurrent: -5, duration: 0 })
       .expect(400);
   });
 
   it('POST /conductors/sizing rejects an allowable temperature below ambient', async () => {
-    await request(server())
+    await request(app.getHttpServer())
       .post('/conductors/sizing')
       .send({
         material: 'ALUMINUM_EC_GRADE',

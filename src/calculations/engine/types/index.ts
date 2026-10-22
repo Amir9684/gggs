@@ -262,4 +262,3 @@ export interface SafetyEvaluationResult {
     burialDepth?: number;
   };
 }
-

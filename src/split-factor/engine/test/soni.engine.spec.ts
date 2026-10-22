@@ -59,15 +59,24 @@ describe('computeSoniSplitFactor', () => {
   });
 
   it('sends more of the fault current into a lower-resistance grid', () => {
-    const low = computeSoniSplitFactor({ gridResistance: 0.1, terminals: [terminal()] });
-    const high = computeSoniSplitFactor({ gridResistance: 2, terminals: [terminal()] });
+    const low = computeSoniSplitFactor({
+      gridResistance: 0.1,
+      terminals: [terminal()],
+    });
+    const high = computeSoniSplitFactor({
+      gridResistance: 2,
+      terminals: [terminal()],
+    });
     expect(low.splitFactor).toBeGreaterThan(high.splitFactor);
   });
 
   it('stays between 0 and 100 percent for ordinary data', () => {
     const result = computeSoniSplitFactor({
       gridResistance: 0.5,
-      terminals: [terminal(), terminal({ spanLength: 300, faultCurrent: complex(200, -250) })],
+      terminals: [
+        terminal(),
+        terminal({ spanLength: 300, faultCurrent: complex(200, -250) }),
+      ],
     });
     expect(result.splitFactor).toBeGreaterThan(0);
     expect(result.splitFactor).toBeLessThan(100);
@@ -92,13 +101,25 @@ describe('computeSoniSplitFactor', () => {
       gridResistance: 0.5,
       terminals: [terminal(), terminal({ spanLength: 350 })],
     });
-    const earth = result.terminalEarthCurrents.reduce((s, c) => add(s, c), complex(0));
-    expect(result.gridCurrent.re + earth.re).toBeCloseTo(result.totalFaultCurrent.re, 8);
-    expect(result.gridCurrent.im + earth.im).toBeCloseTo(result.totalFaultCurrent.im, 8);
+    const earth = result.terminalEarthCurrents.reduce(
+      (s, c) => add(s, c),
+      complex(0),
+    );
+    expect(result.gridCurrent.re + earth.re).toBeCloseTo(
+      result.totalFaultCurrent.re,
+      8,
+    );
+    expect(result.gridCurrent.im + earth.im).toBeCloseTo(
+      result.totalFaultCurrent.im,
+      8,
+    );
   });
 
   it('lets a mutual impedance change the result', () => {
-    const without = computeSoniSplitFactor({ gridResistance: 0.5, terminals: [terminal()] });
+    const without = computeSoniSplitFactor({
+      gridResistance: 0.5,
+      terminals: [terminal()],
+    });
     const withMutual = computeSoniSplitFactor({
       gridResistance: 0.5,
       terminals: [terminal({ mutualImpedance: complex(0.00005, 0.00038) })],
@@ -107,8 +128,12 @@ describe('computeSoniSplitFactor', () => {
   });
 
   it('rejects bad input', () => {
-    expect(() => computeSoniSplitFactor({ gridResistance: 0, terminals: [terminal()] })).toThrow();
-    expect(() => computeSoniSplitFactor({ gridResistance: 0.3, terminals: [] })).toThrow();
+    expect(() =>
+      computeSoniSplitFactor({ gridResistance: 0, terminals: [terminal()] }),
+    ).toThrow();
+    expect(() =>
+      computeSoniSplitFactor({ gridResistance: 0.3, terminals: [] }),
+    ).toThrow();
     expect(() =>
       computeSoniSplitFactor({
         gridResistance: 0.3,
