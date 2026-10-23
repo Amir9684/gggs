@@ -22,15 +22,14 @@ import { TouchVoltageMap } from './entities/touch-voltage-map.entity';
 import { VoltageProfile } from './entities/voltage-profile.entity';
 import { Report } from 'src/reports/entities/report.entity';
 
+import { UpdateGalerkinSettingsDto } from 'src/galerkin/dto/update-galerkin-settings.dto';
+import { evaluateGalerkinCase } from 'src/galerkin/galerkin-case.evaluator';
+import { resolveGalerkinSettings } from 'src/galerkin/galerkin-settings';
+
 import { CreateCalculationCaseDto } from './dto/create-calculation-case.dto';
 import { UpdateCalculationCaseDto } from './dto/update-calculation-case.dto';
 import { GetCalculationCasesQueryDTO } from './dto/get-calculation-cases-query.dto';
 import { PreviewCalculationDto } from './dto/preview-calculation.dto';
-import { toGeneratorParams } from 'src/grids/dto/grid-generator.schema';
-import {
-  generateRectangularGrid,
-  type GeneratedGrid,
-} from './engine/grid-generator.engine';
 import {
   DesignMethod,
   IMPLEMENTED_DESIGN_METHODS,
@@ -1009,6 +1008,17 @@ export class CalculationsService {
         }),
       ]);
 
+      if (calculationCase.designMethod === DesignMethod.GALERKIN) {
+        return this.runGalerkinCase(
+          id,
+          calculationCase,
+          fault,
+          settings,
+          elements,
+          layers,
+        );
+      }
+
       const outcome = this.evaluateCase(
         calculationCase,
         fault,
@@ -1082,6 +1092,164 @@ export class CalculationsService {
   }
 
   /**
+   * The Galerkin path of `run()`: the method of moments solves the grid
+   * (see `src/galerkin`) instead of the IEEE 80 formulas, so a result has
+   * no IEEE `details`; its solver notes go in `solverDetails` and its
+   * voltage maps come from the solved surface potential.
+   */
+  private async runGalerkinCase(
+    id: string,
+    calculationCase: CalculationCase,
+    fault: CaseFault | null,
+    settings: CaseSetting | null,
+    elements: GridElement[],
+    layers: SoilLayer[],
+  ) {
+    if (!fault || !settings) {
+      return {
+        statusCode: HttpStatus.BAD_REQUEST,
+        data: null,
+        messages:
+          'برای این کیس، اطلاعات خطا یا تنظیمات ثبت نشده است. ابتدا کیس را کامل کنید.',
+      };
+    }
+
+    const outcome = evaluateGalerkinCase({
+      grid: {
+        length: Number(calculationCase.grid.length),
+        width: Number(calculationCase.grid.width),
+        burialDepth: Number(calculationCase.grid.burialDepth),
+      },
+      fault: {
+        faultCurrent: Number(fault.faultCurrent),
+        splitFactor: Number(fault.splitFactor),
+        decrementFactor: Number(fault.decrementFactor),
+        shockDuration: Number(fault.shockDuration),
+      },
+      settings: {
+        surfaceLayerResistivity: Number(settings.surfaceLayerResistivity),
+        surfaceLayerThickness: Number(settings.surfaceLayerThickness),
+        bodyWeight: Number(settings.bodyWeight),
+      },
+      soilLayers: layers.map((layer) => ({
+        resistivity: Number(layer.resistivity),
+        thickness: Number(layer.thickness),
+      })),
+      elements,
+      galerkinSettings: calculationCase.galerkinSettings,
+    });
+
+    if (!outcome.ok) {
+      return {
+        statusCode: HttpStatus.BAD_REQUEST,
+        data: null,
+        messages: outcome.message,
+      };
+    }
+
+    const { values, samples } = outcome;
+
+    const savedResult =
+      await this.calculationResultRepository.manager.transaction(
+        async (manager) => {
+          const result = await manager.save(
+            CalculationResult,
+            manager.create(CalculationResult, {
+              calculationCase: { id },
+              gridResistance: values.gridResistance,
+              gpr: values.gpr,
+              meshVoltage: values.meshVoltage,
+              touchVoltage: values.touchVoltage,
+              stepVoltage: values.stepVoltage,
+              permissibleTouchVoltage: values.permissibleTouchVoltage,
+              permissibleStepVoltage: values.permissibleStepVoltage,
+              safe: values.safe,
+              details: null,
+              solverDetails: values.solverDetails,
+            }),
+          );
+
+          const toRow = (point: { x: number; y: number; value: number }) => ({
+            result: { id: result.id },
+            x: point.x,
+            y: point.y,
+            value: point.value,
+          });
+
+          await Promise.all([
+            manager.save(StepVoltageMap, samples.stepVoltageMap.map(toRow)),
+            manager.save(TouchVoltageMap, samples.touchVoltageMap.map(toRow)),
+            manager.save(
+              VoltageProfile,
+              samples.voltageProfile.map((point) => ({
+                result: { id: result.id },
+                x: point.x,
+                y: point.y,
+                voltage: point.value,
+              })),
+            ),
+          ]);
+
+          return result;
+        },
+      );
+
+    return {
+      statusCode: HttpStatus.CREATED,
+      messages: 'محاسبات با موفقیت انجام شد.',
+      data: savedResult,
+    };
+  }
+
+  /**
+   * Saves the Galerkin solver inputs of a Galerkin case; omitted fields
+   * keep their current (or default) value.
+   */
+  updateGalerkinSettings(
+    id: string,
+    dto: UpdateGalerkinSettingsDto,
+    user: TAuthenticatedUserType,
+  ) {
+    return asyncFn(async () => {
+      const calculationCase = await this.findOwnedOrAdmin(id, user);
+
+      if (!calculationCase) {
+        return {
+          statusCode: HttpStatus.NOT_FOUND,
+          data: null,
+          messages: `کیس محاسباتی با آیدی: ${id} یافت نشد.`,
+        };
+      }
+
+      if (calculationCase.designMethod !== DesignMethod.GALERKIN) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages:
+            'تنظیمات گالرکین فقط برای کیس‌های روش گالرکین قابل ثبت است.',
+        };
+      }
+
+      const provided = Object.fromEntries(
+        Object.entries(dto).filter(([, value]) => value !== undefined),
+      );
+      const merged = {
+        ...resolveGalerkinSettings(calculationCase.galerkinSettings),
+        ...provided,
+      };
+
+      calculationCase.galerkinSettings = merged;
+      await this.calculationCaseRepository.save(calculationCase);
+
+      return {
+        statusCode: HttpStatus.OK,
+        messages: 'تنظیمات گالرکین ذخیره شد.',
+        data: merged,
+      };
+    });
+  }
+
+  /**
    * Runs the engine on a case's inputs, optionally with overrides, and
    * returns the numbers without saving anything — the "what if" behind the
    * live recalculation panel. It goes through the same `evaluateCase` as
@@ -1089,9 +1257,7 @@ export class CalculationsService {
    * for the same inputs.
    *
    * Overrides (all optional, never persisted): grid dimensions, the
-   * editor's unsaved elements, generator parameters for a parametric grid
-   * (the layout is then generated and returned as `generated`, and the
-   * stored elements are not read), and fault / settings values. When the fault
+   * editor's unsaved elements, and fault / settings values. When the fault
    * duration is overridden without a decrement factor, Df is re-derived
    * from the new duration, as on the case form.
    */
@@ -1111,23 +1277,13 @@ export class CalculationsService {
         };
       }
 
-      const generatorParams = previewDto.grid;
-      let generatedGrid: GeneratedGrid | null = null;
-      if (generatorParams && 'conductorDiameter' in generatorParams) {
-        try {
-          generatedGrid = generateRectangularGrid(
-            toGeneratorParams(generatorParams),
-          );
-        } catch (error) {
-          return {
-            statusCode: HttpStatus.BAD_REQUEST,
-            data: null,
-            messages:
-              error instanceof Error
-                ? error.message
-                : 'تولید شبکه با پارامترهای داده شده ممکن نیست.',
-          };
-        }
+      if (calculationCase.designMethod === DesignMethod.GALERKIN) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages:
+            'پیش‌نمایش لحظه‌ای برای روش گالرکین پشتیبانی نمی‌شود. برای دیدن نتیجه، محاسبه را اجرا کنید.',
+        };
       }
 
       const [fault, settings, savedElements, layers] = await Promise.all([
@@ -1141,7 +1297,7 @@ export class CalculationsService {
           order: { createdAt: 'DESC' },
         }),
 
-        previewDto.elements || generatedGrid
+        previewDto.elements
           ? Promise.resolve<GridElementLike[]>([])
           : this.gridElementRepository.find({
               where: { grid: { id: calculationCase.grid.id } },
@@ -1164,21 +1320,10 @@ export class CalculationsService {
 
       const definedOnly = <T extends object>(
         values: T | undefined,
-      ): Partial<T> => {
-        const defined: Partial<T> = {};
-        if (values === undefined) {
-          return defined;
-        }
-        for (const key in values) {
-          if (
-            Object.prototype.hasOwnProperty.call(values, key) &&
-            values[key] !== undefined
-          ) {
-            defined[key] = values[key];
-          }
-        }
-        return defined;
-      };
+      ): Partial<T> =>
+        Object.fromEntries(
+          Object.entries(values ?? {}).filter(([, v]) => v !== undefined),
+        ) as Partial<T>;
 
       const faultOverrides = definedOnly(previewDto.fault);
       const previewFault: CaseFaultInput = { ...fault, ...faultOverrides };
@@ -1205,18 +1350,12 @@ export class CalculationsService {
             length: Number(calculationCase.grid.length),
             width: Number(calculationCase.grid.width),
             burialDepth: Number(calculationCase.grid.burialDepth),
-            ...(generatorParams && 'conductorDiameter' in generatorParams
-              ? {
-                  length: generatorParams.length,
-                  width: generatorParams.width,
-                  burialDepth: generatorParams.burialDepth,
-                }
-              : definedOnly(generatorParams)),
+            ...definedOnly(previewDto.grid),
           },
         },
         previewFault,
         previewSettings,
-        generatedGrid?.elements ?? previewDto.elements ?? savedElements,
+        previewDto.elements ?? savedElements,
         layers,
       );
       if ('statusCode' in outcome) {
@@ -1248,7 +1387,6 @@ export class CalculationsService {
             totalRodLength: geometry.totalRodLength,
           },
           details: evaluation.details,
-          generated: generatedGrid?.summary ?? null,
         },
       };
     });

@@ -382,6 +382,46 @@ describe('parseLegacyGggs — bad files', () => {
     return 'none';
   };
 
+  it('identifies an IEEE-2000 calculation save without grid geometry', () => {
+    const records: Buffer[] = [];
+    const single = (value: number) => {
+      const record = Buffer.alloc(RECORD_SIZE);
+      record.writeFloatLE(value);
+      records.push(record);
+    };
+    const string = (value: string) => {
+      const record = Buffer.alloc(RECORD_SIZE);
+      const bytes = Buffer.from(value, 'latin1');
+      record.writeUInt16LE(bytes.length);
+      bytes.copy(record, 2);
+      records.push(record);
+    };
+
+    // A1..A11, including the numeric form fields.
+    [100, 100, 0, 1667, 0.5, 4.18, 16, 188, 262, 255, 355].forEach(single);
+    // A12..A19: duration flags, conductor caption, visibility, and labels.
+    [
+      'False',
+      'False',
+      'False',
+      'True',
+      'Standard Annealed Soft Copper Wire',
+      'True',
+      'Permissible conductor size ',
+      'Cross sectional area of grid conductors ',
+    ].forEach(string);
+    single(6250); // A20 form height
+    string('Standard Annealed Soft Copper Wire'); // A21
+    single(40); // A22 ambient temperature
+    // These are calculation-form values, not grid-array bounds or coordinates.
+    [50, 50, 5, 0.25, 0.6, 0, 0, 0.975555, 975.75, 230.93, 189.99].forEach(
+      single,
+    );
+    string('Safe');
+
+    expect(code(Buffer.concat(records))).toBe('NO_GEOMETRY');
+  });
+
   it('rejects an empty file', () => {
     expect(code(Buffer.alloc(0))).toBe('EMPTY');
   });

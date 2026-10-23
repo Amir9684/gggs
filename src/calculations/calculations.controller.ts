@@ -18,6 +18,7 @@ import { CreateCalculationCaseDto } from './dto/create-calculation-case.dto';
 import { UpdateCalculationCaseDto } from './dto/update-calculation-case.dto';
 import { GetCalculationCasesQueryDTO } from './dto/get-calculation-cases-query.dto';
 import { PreviewCalculationDto } from './dto/preview-calculation.dto';
+import { UpdateGalerkinSettingsDto } from 'src/galerkin/dto/update-galerkin-settings.dto';
 
 /**
  * Every route is scoped to the requesting user's own projects via the
@@ -56,6 +57,20 @@ export class CalculationsController {
     @CurrentUser() user: TAuthenticatedUserType,
   ) {
     return this.calculationsService.update(id, updateCalculationCaseDto, user);
+  }
+
+  /** Galerkin solver inputs (segment length, rod radius, wells, Kro). */
+  @Put(':id/galerkin-settings')
+  updateGalerkinSettings(
+    @Param('id') id: string,
+    @Body() updateGalerkinSettingsDto: UpdateGalerkinSettingsDto,
+    @CurrentUser() user: TAuthenticatedUserType,
+  ) {
+    return this.calculationsService.updateGalerkinSettings(
+      id,
+      updateGalerkinSettingsDto,
+      user,
+    );
   }
 
   @Delete(':id')

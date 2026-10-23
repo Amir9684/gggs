@@ -413,6 +413,58 @@ function selectedFaultDuration(flags: string[]): number | null {
   return chosen.length === 1 ? FAULT_DURATIONS_S[chosen[0].index] : null;
 }
 
+/**
+ * Some VB6 versions save the IEEE-2000 calculation form rather than a grid.
+ * That variant has the same A1..A22 header as the graph format, then stores
+ * calculation-form values and a short "Safe" status string; it has no node,
+ * rod, or well arrays. Do not let those values be interpreted as array sizes.
+ */
+function isIeee2000CalculationFile(buffer: Buffer): boolean {
+  const record = (index: number) => index * RECORD_SIZE;
+  const readString = (index: number): string | null => {
+    const offset = record(index);
+    if (offset + 2 > buffer.length) return null;
+
+    const length = buffer.readUInt16LE(offset);
+    if (length > RECORD_SIZE - 2 || offset + 2 + length > buffer.length) {
+      return null;
+    }
+    return buffer.toString('latin1', offset + 2, offset + 2 + length);
+  };
+
+  // VB6 writes the final variable-length string without padding the file to
+  // the next 128-byte boundary, so inspect the record containing the last byte.
+  const footerRecord = Math.floor((buffer.length - 1) / RECORD_SIZE);
+  const footerOffset = record(footerRecord);
+  const footer = readString(footerRecord);
+  if (footer !== 'Safe' && footer !== 'Not Safe') return false;
+
+  const label17 = readString(17)?.trim().toLowerCase();
+  const label18 = readString(18)?.trim().toLowerCase();
+  const conductor = readString(20);
+
+  if (
+    label17 !== 'permissible conductor size' ||
+    label18 !== 'cross sectional area of grid conductors' ||
+    !conductor
+  ) {
+    return false;
+  }
+
+  // Confirm the electrical input header is numeric before classifying it.
+  for (const index of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 19, 21]) {
+    const offset = record(index);
+    if (
+      offset + 4 > buffer.length ||
+      !Number.isFinite(buffer.readFloatLE(offset))
+    ) {
+      return false;
+    }
+  }
+
+  return footerOffset < buffer.length && footerRecord >= 22;
+}
+
 /** Conductors from nodes, the way `Okbtn_Click` builds them. */
 function conductorsFromNodes(nodes: LegacyPoint[]): LegacyPoint[][] {
   const lines: LegacyPoint[][] = [];
@@ -537,6 +589,13 @@ function buildImport(
 function parseLegacyGggs(buffer: Buffer): LegacyGgggsImport {
   if (buffer.length === 0) {
     throw new LegacyGgggsError('EMPTY', 'The file is empty.');
+  }
+
+  if (isIeee2000CalculationFile(buffer)) {
+    throw new LegacyGgggsError(
+      'NO_GEOMETRY',
+      'This file contains IEEE-2000 calculation inputs, but no saved grid layout. Save the layout from the Windows graph/grid form and import that .gggs file instead.',
+    );
   }
 
   const warnings: LegacyWarning[] = [];

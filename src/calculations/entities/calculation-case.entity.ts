@@ -5,6 +5,8 @@ import { Grid } from 'src/grids/entities/grid.entity';
 import { Project } from 'src/projects/entities/project.entity';
 import { SoilModel } from 'src/soil/entities/soil-model.entity';
 
+import type { GalerkinSettings } from 'src/galerkin/galerkin-settings';
+
 import { DesignMethod, SoilLayeringMethod } from '../enum';
 
 @Entity('calculation_cases')
@@ -38,4 +40,12 @@ export class CalculationCase extends BaseEntity {
     nullable: true,
   })
   soilLayering: SoilLayeringMethod | null;
+
+  /**
+   * Galerkin solver inputs (segment length, rod radius, well data, Kro).
+   * `null` until the user edits them; the defaults apply then. Only used
+   * by Galerkin cases.
+   */
+  @Column('jsonb', { nullable: true })
+  galerkinSettings: Partial<GalerkinSettings> | null;
 }

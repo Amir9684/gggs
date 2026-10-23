@@ -375,12 +375,14 @@ export function solveGalerkin(input: GalerkinInput): GalerkinSolution {
     requirePositive(wells.diameter, 'Well diameter');
     requirePositive(wells.kro, 'Kro');
     assertDistinctPositions(wells.positions, 'wells');
-    // Wells reuse the rod radius in their self term.
-    if (!rods) {
+    // Wells reuse the rod radius in their self term, so `rods` (even with
+    // no positions) must carry it.
+    if (!input.rods) {
       throw new Error(
-        'Wells need the rod radius: define rods (or a rod radius) as well.',
+        'Wells need the rod radius: pass `rods` (it may have no positions).',
       );
     }
+    requirePositive(input.rods.radius, 'Rod radius');
   }
 
   const nh = horizontals.length;
@@ -454,13 +456,18 @@ export function solveGalerkin(input: GalerkinInput): GalerkinSolution {
   }
 
   // Wells.
-  if (wells && rods) {
+  if (wells && input.rods) {
+    const wellRodRadius = input.rods.radius;
+    const rodLength = rods ? rods.length : 0;
+    const rodPositions: readonly VerticalPosition[] = rods
+      ? rods.positions
+      : [];
     const wellFactor = (wells.kro * rho) / (2 * Math.PI ** 2 * wells.diameter);
     for (let w = 0; w < nw; w += 1) {
       const i = nh + nr + w;
       matrix[i][i] =
         wellFactor *
-        (Math.log((8 * wells.diameter) / rods.radius) +
+        (Math.log((8 * wells.diameter) / wellRodRadius) +
           Math.log((2 * wells.diameter) / wells.length));
 
       // Well - well. The Windows code reuses the well self factor here
@@ -483,14 +490,14 @@ export function solveGalerkin(input: GalerkinInput): GalerkinSolution {
       // Well - rod.
       for (let r = 0; r < nr; r += 1) {
         const distance = Math.hypot(
-          wells.positions[w].x - rods.positions[r].x,
-          wells.positions[w].y - rods.positions[r].y,
+          wells.positions[w].x - rodPositions[r].x,
+          wells.positions[w].y - rodPositions[r].y,
         );
         const value = wellRodTerm(
-          rho / (4 * Math.PI * wells.length * rods.length),
+          rho / (4 * Math.PI * wells.length * rodLength),
           distance,
           wells.length,
-          rods.length,
+          rodLength,
           topDepth,
         );
         matrix[i][nh + r] = value;

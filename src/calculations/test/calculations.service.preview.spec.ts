@@ -158,8 +158,13 @@ describe('CalculationsService.preview', () => {
     const res = await service.preview('case-1', parse({}), user);
 
     expect(res.statusCode).toBe(200);
-    expect(res.data?.meshVoltage).toBeCloseTo(847.9199, 1);
-    expect(res.data?.generated).toBeNull();
+    const data = dataOf(res);
+
+    expect(data.meshVoltage).toBeCloseTo(847.9199, 1);
+    expect(
+      data.details.grid.conductorCountAlongLength +
+        data.details.grid.conductorCountAlongWidth,
+    ).toBe(22);
     expect(transaction).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
   });
@@ -213,9 +218,14 @@ describe('CalculationsService.preview', () => {
     );
 
     expect(res.statusCode).toBe(200);
-    expect(res.data?.generated?.conductorCount).toBe(12);
-    // fewer, wider-spaced conductors and no rods: higher mesh voltage
-    expect(dataOf(res).meshVoltage).toBeGreaterThan(847.9199);
+    const data = dataOf(res);
+
+    expect(
+      data.details.grid.conductorCountAlongLength +
+        data.details.grid.conductorCountAlongWidth,
+    ).toBe(12);
+    // Fewer, wider-spaced conductors and no rods: higher mesh voltage.
+    expect(data.meshVoltage).toBeGreaterThan(847.9199);
   });
 
   it('derives line counts from a spacing', async () => {
@@ -233,7 +243,12 @@ describe('CalculationsService.preview', () => {
       }),
       user,
     );
-    expect(res.data?.generated?.conductorCount).toBe(22);
+    const data = dataOf(res);
+
+    expect(
+      data.details.grid.conductorCountAlongLength +
+        data.details.grid.conductorCountAlongWidth,
+    ).toBe(22);
   });
 
   it('answers 400 for generator parameters the grid cannot satisfy', async () => {
