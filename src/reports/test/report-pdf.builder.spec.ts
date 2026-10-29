@@ -1,9 +1,11 @@
 import { DesignMethod, SoilLayeringMethod } from 'src/calculations/enum';
 
 import { buildReportPdf } from '../pdf/report-pdf.builder';
-import type { ReportDetails, ReportPdfData } from '../pdf/report-pdf.types';
+import type {
+  ReportDetails,
+  ReportPdfData,
+} from '../pdf/report-pdf.types';
 import { ReportTemplate } from '../report-template';
-import type { ConcreteReportTemplate } from '../report-template';
 
 /**
  * Every string the builder draws, in order. `jest.mock` factories may
@@ -176,6 +178,7 @@ function makeData(overrides: Partial<ReportPdfData> = {}): ReportPdfData {
       safe: false,
     },
     details: baseDetails,
+    galerkin: null,
     charts: {
       touchVoltageMap: [{ x: 0, y: 0, value: 800 }],
       stepVoltageMap: [{ x: 0, y: 0, value: 300 }],
@@ -200,36 +203,18 @@ async function build(data: ReportPdfData): Promise<Buffer> {
 
 describe('buildReportPdf', () => {
   it('builds every template without throwing', async () => {
-    const cases: Array<
-      [ConcreteReportTemplate, DesignMethod, SoilLayeringMethod]
-    > = [
-      [
-        ReportTemplate.IEEE_80_86_ONE_LAYER,
-        DesignMethod.IEEE_80_86,
-        SoilLayeringMethod.ONE_LAYER,
-      ],
-      [
-        ReportTemplate.IEEE_80_86_TWO_LAYER,
-        DesignMethod.IEEE_80_86,
-        SoilLayeringMethod.TWO_LAYER,
-      ],
-      [
-        ReportTemplate.IEEE_80_2000_ONE_LAYER,
-        DesignMethod.IEEE_80_2000,
-        SoilLayeringMethod.ONE_LAYER,
-      ],
-      [
-        ReportTemplate.IEEE_80_2000_TWO_LAYER,
-        DesignMethod.IEEE_80_2000,
-        SoilLayeringMethod.TWO_LAYER,
-      ],
+    const cases: Array<[ReportTemplate, DesignMethod, SoilLayeringMethod]> = [
+      [ReportTemplate.IEEE_80_86_ONE_LAYER, DesignMethod.IEEE_80_86, SoilLayeringMethod.ONE_LAYER],
+      [ReportTemplate.IEEE_80_86_TWO_LAYER, DesignMethod.IEEE_80_86, SoilLayeringMethod.TWO_LAYER],
+      [ReportTemplate.IEEE_80_2000_ONE_LAYER, DesignMethod.IEEE_80_2000, SoilLayeringMethod.ONE_LAYER],
+      [ReportTemplate.IEEE_80_2000_TWO_LAYER, DesignMethod.IEEE_80_2000, SoilLayeringMethod.TWO_LAYER],
     ];
 
     for (const [template, designMethod, soilLayering] of cases) {
       const twoLayer = soilLayering === SoilLayeringMethod.TWO_LAYER;
       const buffer = await build(
         makeData({
-          template,
+          template: template as ReportPdfData['template'],
           designMethod,
           soilLayering,
           details: {
@@ -334,9 +319,7 @@ describe('buildReportPdf', () => {
 
   it('skips the detail and methodology pages when details are off', async () => {
     await build(
-      makeData({
-        options: { includeDetails: false, halfSecondVariant: false },
-      }),
+      makeData({ options: { includeDetails: false, halfSecondVariant: false } }),
     );
     expect(has('روش محاسبه')).toBe(false);
     expect(has('هندسهٔ شبکه')).toBe(false);
@@ -349,9 +332,7 @@ describe('buildReportPdf', () => {
     await build(makeData());
     const withDetails = mockPageCount;
     await build(
-      makeData({
-        options: { includeDetails: false, halfSecondVariant: false },
-      }),
+      makeData({ options: { includeDetails: false, halfSecondVariant: false } }),
     );
     expect(mockPageCount).toBeLessThan(withDetails);
   });
@@ -450,6 +431,95 @@ describe('buildReportPdf', () => {
       }),
     );
     expect(has('عمق دفن خارج از محدوده است')).toBe(true);
+  });
+
+  describe('Galerkin template', () => {
+    const galerkinData = (overrides: Partial<ReportPdfData> = {}): ReportPdfData =>
+      makeData({
+        template: ReportTemplate.GALERKIN,
+        designMethod: DesignMethod.GALERKIN,
+        soilLayering: null,
+        details: null,
+        galerkin: {
+          settings: { segmentLength: 5, rodRadius: 0.0125, wellDiameter: 0.3, wellLength: 3, kro: 1 },
+          solver: {
+            method: 'GALERKIN',
+            segmentLength: 5,
+            segmentCount: 308,
+            rodCount: 4,
+            wellCount: 0,
+            meshCount: 100,
+            surgeImpedance: null,
+            soilResistivity: 400,
+            groundCurrent: 1908,
+          },
+        },
+        ...overrides,
+      });
+
+    it('prints the solver inputs, the method and no IEEE factor pages', async () => {
+      const buffer = await build(galerkinData());
+
+      expect(buffer.length).toBeGreaterThan(0);
+      expect(has('ورودی‌های حل‌گر گالرکین')).toBe(true);
+      expect(has('روش محاسبه (گالرکین)')).toBe(true);
+      expect(has('R · x = 1')).toBe(true);
+      expect(has('گالرکین (Galerkin)')).toBe(true);
+      expect(has('هندسهٔ شبکه')).toBe(false);
+      expect(has('n (mesh) = nx · ny')).toBe(false);
+      expect(has('مقادیر میانی این نتیجه')).toBe(false);
+    });
+
+    it('shows the element counts and the injected current', async () => {
+      await build(galerkinData());
+
+      expect(has('308')).toBe(true);
+      expect(has('1908.00 A')).toBe(true);
+      // No wells: their dimensions are not listed.
+      expect(has('ضریب Kro')).toBe(false);
+    });
+
+    it('lists the well data when there are wells', async () => {
+      await build(
+        galerkinData({
+          galerkin: {
+            settings: { segmentLength: 5, rodRadius: 0.0125, wellDiameter: 0.3, wellLength: 3, kro: 1 },
+            solver: {
+              method: 'GALERKIN',
+              segmentLength: 5,
+              segmentCount: 100,
+              rodCount: 0,
+              wellCount: 2,
+              meshCount: 16,
+              surgeImpedance: 2.9,
+            },
+          },
+        }),
+      );
+
+      expect(has('ضریب Kro')).toBe(true);
+      expect(has('2.900 \u2126')).toBe(true);
+    });
+
+    it('is shorter without details and still prints inputs, results and charts', async () => {
+      await build(galerkinData());
+      const full = mockPageCount;
+      await build(
+        galerkinData({ options: { includeDetails: false, halfSecondVariant: false } }),
+      );
+
+      expect(mockPageCount).toBeLessThan(full);
+      expect(has('ورودی‌های حل‌گر گالرکین')).toBe(false);
+      expect(has('نتایج محاسبه')).toBe(true);
+      expect(has('نقشه ولتاژ تماس')).toBe(true);
+    });
+
+    it('says so when the solver details were not stored', async () => {
+      const buffer = await build(galerkinData({ galerkin: null }));
+
+      expect(buffer.length).toBeGreaterThan(0);
+      expect(has('جزئیات حل‌گر همراه با این نتیجه ذخیره نشده است')).toBe(true);
+    });
   });
 
   it('rejects instead of hanging when drawing throws', async () => {

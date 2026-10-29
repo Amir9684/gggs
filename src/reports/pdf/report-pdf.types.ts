@@ -1,5 +1,7 @@
 import type { DesignMethod, SoilLayeringMethod } from 'src/calculations/enum';
 import type { SafetyEvaluationResult } from 'src/calculations/engine/types';
+import type { GalerkinSettings } from 'src/galerkin/galerkin-settings';
+import type { GalerkinSolverDetails } from 'src/galerkin/galerkin-solver-details';
 
 import type { ConcreteReportTemplate } from '../report-template';
 
@@ -35,6 +37,12 @@ export interface ReportConductor {
   minimumAreaMm2: number;
   standardSizeMm2: number | null;
   crossSectionMm2: number | null;
+}
+
+/** Galerkin inputs and solver notes of a Galerkin result. */
+export interface ReportGalerkin {
+  settings: GalerkinSettings;
+  solver: GalerkinSolverDetails;
 }
 
 export interface ReportOptions {
@@ -94,8 +102,10 @@ export interface ReportPdfData {
     permissibleStepVoltage: number;
     safe: boolean;
   };
-  /** `null` for results saved before the engine details were persisted. */
+  /** `null` for results saved before the engine details were persisted, and for Galerkin. */
   details: ReportDetails | null;
+  /** Set for Galerkin results only. */
+  galerkin: ReportGalerkin | null;
   charts: {
     touchVoltageMap: SamplePoint[];
     stepVoltageMap: SamplePoint[];

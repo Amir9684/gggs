@@ -14,4 +14,8 @@ export interface GalerkinSolverDetails {
   meshCount: number;
   /** Surge impedance (ohm); `null` unless the grid has 4 to 64 meshes. */
   surgeImpedance: number | null;
+  /** Soil resistivity the solver used (ohm·m). Absent on results saved before reports. */
+  soilResistivity?: number;
+  /** Current injected into the grid, IG = If · Sf · Df (A). Absent likewise. */
+  groundCurrent?: number;
 }

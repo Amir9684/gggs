@@ -13,6 +13,8 @@ import {
   detailsUnavailableNote,
   electricalSection,
   footerBlock,
+  galerkinMethodologySection,
+  galerkinSection,
   geometrySection,
   headerBlock,
   inputSections,
@@ -21,7 +23,7 @@ import {
   twoLayerSection,
 } from './report-sections';
 import type { ReportPdfData } from './report-pdf.types';
-import { isTwoLayerTemplate } from '../report-template';
+import { ReportTemplate, isTwoLayerTemplate } from '../report-template';
 
 export type { ReportPdfData } from './report-pdf.types';
 
@@ -35,7 +37,8 @@ export type { ReportPdfData } from './report-pdf.types';
  *
  *   1. inputs            project, case, grid & soil, fault, settings
  *                        and the decrement-factor table
- *   2. details           conductor sizing, Rg / GPR / Cs and the 50 kg /
+ *   2. details           (Galerkin: conductor sizing, solver inputs, method)
+ *                        conductor sizing, Rg / GPR / Cs and the 50 kg /
  *                        70 kg limits, geometry and Km / Ks / Ki / Kh / n,
  *                        two-layer soil correction (two-layer templates)
  *   3. methodology       the formulas the engine used
@@ -62,7 +65,16 @@ export function buildReportPdf(data: ReportPdfData): Promise<Buffer> {
       decrementFactorSection(doc, data);
 
       // ── 2. Details ────────────────────────────────────────────────
-      if (data.options.includeDetails) {
+      if (data.options.includeDetails && data.template === ReportTemplate.GALERKIN) {
+        // The Galerkin solver has no IEEE factors: its detail page is the
+        // solver inputs, followed by the method description.
+        doc.addPage();
+        conductorSection(doc, data);
+        galerkinSection(doc, data);
+
+        doc.addPage();
+        galerkinMethodologySection(doc);
+      } else if (data.options.includeDetails) {
         doc.addPage();
         if (data.details) {
           conductorSection(doc, data);
@@ -104,3 +116,4 @@ export function buildReportPdf(data: ReportPdfData): Promise<Buffer> {
     }
   });
 }
+

@@ -66,10 +66,12 @@ export function headerBlock(doc: Doc, data: ReportPdfData): void {
       width: CONTENT_WIDTH,
       align: 'right',
     });
-  doc.text(REPORT_TEMPLATE_LABELS_FA[data.template], PAGE_MARGIN, doc.y + 2, {
-    width: CONTENT_WIDTH,
-    align: 'right',
-  });
+  doc.text(
+    REPORT_TEMPLATE_LABELS_FA[data.template],
+    PAGE_MARGIN,
+    doc.y + 2,
+    { width: CONTENT_WIDTH, align: 'right' },
+  );
   doc.moveDown(1);
 }
 
@@ -116,7 +118,7 @@ export function inputSections(doc: Doc, data: ReportPdfData): void {
     row(
       doc,
       'مقاومت ویژه خاک',
-      `${n(data.soil.surfaceResistivity)} ${OHM_METER}`,
+      `${n(data.galerkin?.solver.soilResistivity ?? data.soil.surfaceResistivity)} ${OHM_METER}`,
     );
   }
 
@@ -142,7 +144,11 @@ export function inputSections(doc: Doc, data: ReportPdfData): void {
       'مقاومت ویژه لایه سطحی',
       `${n(data.settings.surfaceLayerResistivity)} ${OHM_METER}`,
     );
-    row(doc, 'ضخامت لایه سطحی', `${n(data.settings.surfaceLayerThickness)} m`);
+    row(
+      doc,
+      'ضخامت لایه سطحی',
+      `${n(data.settings.surfaceLayerThickness)} m`,
+    );
     row(doc, 'وزن بدن', `${n(data.settings.bodyWeight, 0)} kg`);
     row(doc, 'فرکانس شبکه', `${n(data.settings.frequency, 0)} Hz`);
   }
@@ -219,7 +225,11 @@ export function conductorSection(doc: Doc, data: ReportPdfData): void {
   sectionTitle(doc, 'هادی و مقطع مورد نیاز');
   row(doc, 'جنس هادی', conductor.materialName);
   row(doc, 'دمای محیط (Ta)', `${n(conductor.ambientTemperature, 0)} °C`);
-  row(doc, 'دمای مجاز هادی (Tm)', `${n(conductor.allowableTemperature, 0)} °C`);
+  row(
+    doc,
+    'دمای مجاز هادی (Tm)',
+    `${n(conductor.allowableTemperature, 0)} °C`,
+  );
   row(doc, 'زمان عبور جریان (tc)', `${n(conductor.sizingDuration)} s`);
   row(doc, 'ضریب حرارتی مقاومت (αr)', conductor.alphaR.toString());
   row(doc, 'ثابت K0', `${n(conductor.k0, 0)} °C`);
@@ -271,11 +281,7 @@ export function electricalSection(
 ): void {
   sectionTitle(doc, 'مقاومت شبکه و افزایش پتانسیل زمین');
   if (details.apparentResistivity !== undefined) {
-    row(
-      doc,
-      'مقاومت ویژه ظاهری خاک (ρ)',
-      `${n(details.apparentResistivity)} ${OHM_METER}`,
-    );
+    row(doc, 'مقاومت ویژه ظاهری خاک (ρ)', `${n(details.apparentResistivity)} ${OHM_METER}`);
   }
   row(doc, 'مقاومت شبکه (Rg)', `${n(data.result.gridResistance, 3)} ${OHM}`);
   row(doc, 'جریان مؤثر شبکه (IG)', `${n(details.effectiveGridCurrent)} A`);
@@ -363,33 +369,25 @@ export function geometrySection(
   if (details.conductorDiameter !== undefined) {
     row(doc, 'قطر هادی (d)', `${n(details.conductorDiameter, 4)} m`);
   }
-  row(
-    doc,
-    'عمق دفن (h)',
-    `${n(details.burialDepth ?? data.grid.burialDepth)} m`,
-  );
+  row(doc, 'عمق دفن (h)', `${n(details.burialDepth ?? data.grid.burialDepth)} m`);
   row(doc, 'طول کل هادی افقی (Lc)', `${n(grid.totalConductorLength)} m`);
   row(doc, 'تعداد میله ارت', n(grid.rodCount, 0));
   row(doc, 'طول کل میله‌ها (LR)', `${n(grid.totalRodLength)} m`);
   if (details.effectiveMeshLength !== undefined) {
-    row(
-      doc,
-      'طول مؤثر برای ولتاژ مش (Lm)',
-      `${n(details.effectiveMeshLength)} m`,
-    );
+    row(doc, 'طول مؤثر برای ولتاژ مش (Lm)', `${n(details.effectiveMeshLength)} m`);
   }
   if (details.effectiveStepLength !== undefined) {
-    row(
-      doc,
-      'طول مؤثر برای ولتاژ گام (Ls)',
-      `${n(details.effectiveStepLength)} m`,
-    );
+    row(doc, 'طول مؤثر برای ولتاژ گام (Ls)', `${n(details.effectiveStepLength)} m`);
   }
 
   sectionTitle(doc, 'ضرایب هندسی');
   if (ieee86) {
     row(doc, 'تعداد مؤثر هادی برای مش (n = nx·ny)', n(factors.n, 2));
-    row(doc, 'تعداد مؤثر هادی برای گام (n = max(nx, ny))', n(factors.nStep, 2));
+    row(
+      doc,
+      'تعداد مؤثر هادی برای گام (n = max(nx, ny))',
+      n(factors.nStep, 2),
+    );
   } else {
     row(doc, 'تعداد مؤثر هادی (n)', n(factors.n, 3));
   }
@@ -439,11 +437,7 @@ export function twoLayerSection(
   const thinUpperLayer = correction.xhor !== 0;
 
   row(doc, 'ضخامت لایه بالایی (hs)', `${n(correction.upperThickness)} m`);
-  row(
-    doc,
-    'نسبت ρ2/ρ1',
-    n(correction.lowerResistivity / correction.upperResistivity, 4),
-  );
+  row(doc, 'نسبت ρ2/ρ1', n(correction.lowerResistivity / correction.upperResistivity, 4));
 
   let xhorLines: string[];
   let yhorLines: string[];
@@ -596,6 +590,94 @@ export function methodologySection(doc: Doc, data: ReportPdfData): void {
   );
 }
 
+// ── Galerkin ────────────────────────────────────────────────────────
+
+/** Solver inputs and the size of the discretised grid (Galerkin template). */
+export function galerkinSection(doc: Doc, data: ReportPdfData): void {
+  sectionTitle(doc, 'ورودی‌های حل‌گر گالرکین');
+
+  const galerkin = data.galerkin;
+  if (!galerkin) {
+    paragraph(
+      doc,
+      'جزئیات حل‌گر همراه با این نتیجه ذخیره نشده است. محاسبه را دوباره اجرا کنید و گزارش را از نتیجهٔ جدید بسازید.',
+    );
+    return;
+  }
+
+  const { settings, solver } = galerkin;
+
+  if (solver.soilResistivity !== undefined) {
+    row(doc, 'مقاومت ویژه خاک (ρ)', `${n(solver.soilResistivity)} ${OHM_METER}`);
+  }
+  if (solver.groundCurrent !== undefined) {
+    row(doc, 'جریان تزریقی به شبکه (IG)', `${n(solver.groundCurrent)} A`);
+  }
+  row(doc, 'طول قطعه', `${n(settings.segmentLength)} m`);
+  row(doc, 'تعداد قطعات هادی', n(solver.segmentCount, 0));
+  row(doc, 'تعداد مش‌ها', n(solver.meshCount, 0));
+  row(doc, 'تعداد میله‌های ارت', n(solver.rodCount, 0));
+  if (solver.rodCount > 0 || solver.wellCount > 0) {
+    row(doc, 'شعاع میله', `${n(settings.rodRadius, 4)} m`);
+  }
+  row(doc, 'تعداد چاه‌های ارت', n(solver.wellCount, 0));
+  if (solver.wellCount > 0) {
+    row(doc, 'قطر چاه', `${n(settings.wellDiameter)} m`);
+    row(doc, 'طول چاه', `${n(settings.wellLength)} m`);
+    row(doc, 'ضریب Kro', n(settings.kro, 3));
+  }
+}
+
+/** The formulas behind the Galerkin result, in the order the solver applies them. */
+export function galerkinMethodologySection(doc: Doc): void {
+  sectionTitle(doc, 'روش محاسبه (گالرکین)');
+  paragraph(
+    doc,
+    'در این روش هادی‌های شبکه به قطعات کوچک تقسیم می‌شوند و هر قطعه یک جریان نشتی یکنواخت به خاک می‌دهد. خاک یکنواخت و تک‌لایه فرض می‌شود و سطح زمین با یک تصویر آینه‌ای در نظر گرفته می‌شود. جریان هر قطعه از حل دستگاه معادلات روش گشتاورها به دست می‌آید.',
+  );
+
+  paragraph(doc, '۱) جریان تزریقی به شبکه:');
+  formulaBlock(doc, ['IG = If · Sf · Df']);
+
+  paragraph(doc, '۲) ماتریس امپدانس و حل جریان قطعات — همهٔ قطعات هم‌پتانسیل‌اند و مجموع جریان‌ها برابر IG است:');
+  formulaBlock(doc, [
+    'R(i,j) = rho / (4·pi·Li·Lj) · ∫∫ ( 1/r + 1/r_image ) dli dlj',
+    'R · x = 1          V = IG / sum(x)          I = V · x',
+    'GPR = V            Rg = GPR / IG',
+  ]);
+
+  paragraph(doc, '۳) پتانسیل سطح زمین در هر نقطه (x, y):');
+  formulaBlock(doc, [
+    'V(x, y) = sum_k  rho · Ik / (2·pi·Lk) · ln( (r2 + d2) / (r1 + d1) )',
+    'r1, r2: distance from the point to the segment ends   d1, d2: offsets along the segment',
+  ]);
+
+  paragraph(doc, '۴) ولتاژ تماس و گام — بیشینهٔ مقدار در نقاط نمونه‌برداری‌شده:');
+  formulaBlock(doc, [
+    'Etouch = max over the grid area of ( GPR − V(x, y) )',
+    'Estep  = max of | V(p) − V(p + 1 m) | over the grid and a 3 m margin',
+  ]);
+
+  paragraph(
+    doc,
+    'مقادیر بیشینه روی یک شبکهٔ نقاط نمونه‌برداری (۵۰×۵۰) محاسبه می‌شوند و ممکن است با نمونه‌برداری ریزتر کمی بزرگ‌تر شوند.',
+  );
+
+  paragraph(doc, '۵) حد مجاز ولتاژ تماس و گام — معادلهٔ دالزیل:');
+  formulaBlock(doc, [
+    'Etouch = (1000 + 1.5·Cs·rho_s) · k / √ts',
+    'Estep  = (1000 + 6·Cs·rho_s) · k / √ts',
+    'Cs = 1 − [ 0.09 · (1 − rho/rho_s) ] / (2·hs + 0.09)',
+    'k = 0.116 for a 50 kg body, k = 0.157 for 70 kg   ts: shock duration (s)',
+  ]);
+
+  paragraph(doc, '۶) امپدانس ضربه (برای شبکه‌های ۴ تا ۶۴ مش):');
+  formulaBlock(doc, [
+    'Zsurge = Rg + Leff/(3·tf) + Rg·RC/tf · (exp(−tf/RC) − 1)',
+    'Leff = kpp · 2·l · ln(4·l/a) · 1e-7     RC = rho · e0 · kr     tf = 1.2 µs',
+  ]);
+}
+
 // ── Results ─────────────────────────────────────────────────────────
 
 export function resultsSection(doc: Doc, data: ReportPdfData): void {
@@ -609,6 +691,17 @@ export function resultsSection(doc: Doc, data: ReportPdfData): void {
   row(doc, 'ولتاژ گام', `${n(result.stepVoltage)} V`);
   row(doc, 'ولتاژ مجاز تماس', `${n(result.permissibleTouchVoltage)} V`);
   row(doc, 'ولتاژ مجاز گام', `${n(result.permissibleStepVoltage)} V`);
+  if (
+    data.galerkin &&
+    data.galerkin.solver.surgeImpedance !== null &&
+    data.galerkin.solver.surgeImpedance !== undefined
+  ) {
+    row(
+      doc,
+      'امپدانس ضربه (Zsurge)',
+      `${n(data.galerkin.solver.surgeImpedance, 3)} ${OHM}`,
+    );
+  }
 
   if (details) {
     sectionTitle(doc, 'مقایسه با حد مجاز');
@@ -670,3 +763,4 @@ export function footerBlock(doc: Doc, data: ReportPdfData): void {
       { width: CONTENT_WIDTH, align: 'right' },
     );
 }
+

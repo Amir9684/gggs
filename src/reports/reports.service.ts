@@ -31,6 +31,8 @@ import type {
   ReportOptions,
   ReportPdfData,
 } from './pdf/report-pdf.types';
+import { DesignMethod } from 'src/calculations/enum';
+import { resolveGalerkinSettings } from 'src/galerkin/galerkin-settings';
 import { resolveHalfSecondVariant } from './report-options';
 import { chooseReportTemplate } from './report-template';
 
@@ -182,29 +184,30 @@ export class ReportsService {
         touchVoltageMap,
         stepVoltageMap,
         voltageProfile,
-      ] = await Promise.all([
-        this.caseFaultRepository.findOne({
-          where: { calculationCase: { id: calculationCase.id } },
-          order: { createdAt: 'DESC' },
-        }),
-        this.caseSettingRepository.findOne({
-          where: { calculationCase: { id: calculationCase.id } },
-          order: { createdAt: 'DESC' },
-        }),
-        this.caseConductorRepository.findOne({
-          where: { calculationCase: { id: calculationCase.id } },
-          order: { createdAt: 'DESC' },
-        }),
-        this.touchVoltageMapRepository.find({
-          where: { result: { id: result.id } },
-        }),
-        this.stepVoltageMapRepository.find({
-          where: { result: { id: result.id } },
-        }),
-        this.voltageProfileRepository.find({
-          where: { result: { id: result.id } },
-        }),
-      ]);
+      ] =
+        await Promise.all([
+          this.caseFaultRepository.findOne({
+            where: { calculationCase: { id: calculationCase.id } },
+            order: { createdAt: 'DESC' },
+          }),
+          this.caseSettingRepository.findOne({
+            where: { calculationCase: { id: calculationCase.id } },
+            order: { createdAt: 'DESC' },
+          }),
+          this.caseConductorRepository.findOne({
+            where: { calculationCase: { id: calculationCase.id } },
+            order: { createdAt: 'DESC' },
+          }),
+          this.touchVoltageMapRepository.find({
+            where: { result: { id: result.id } },
+          }),
+          this.stepVoltageMapRepository.find({
+            where: { result: { id: result.id } },
+          }),
+          this.voltageProfileRepository.find({
+            where: { result: { id: result.id } },
+          }),
+        ]);
 
       const halfSecond = resolveHalfSecondVariant(
         fault ? Number(fault.faultDuration) : 0,
@@ -283,6 +286,16 @@ export class ReportsService {
           safe: result.safe,
         },
         details: result.details ?? null,
+        galerkin:
+          result.solverDetails &&
+          calculationCase.designMethod === DesignMethod.GALERKIN
+            ? {
+                settings: resolveGalerkinSettings(
+                  calculationCase.galerkinSettings,
+                ),
+                solver: result.solverDetails,
+              }
+            : null,
         charts: {
           touchVoltageMap: touchVoltageMap.map((p) => ({
             x: Number(p.x),
@@ -466,3 +479,4 @@ export class ReportsService {
     });
   }
 }
+

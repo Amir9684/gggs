@@ -3,10 +3,7 @@ import { computePermissibleVoltages } from 'src/calculations/engine/permissible-
 import { computeSurfaceDeratingFactor } from 'src/calculations/engine/surface-derating.engine';
 import { extractGridGeometry } from 'src/calculations/engine/grid-geometry.extractor';
 
-import {
-  resolveGalerkinSettings,
-  type GalerkinSettings,
-} from './galerkin-settings';
+import { resolveGalerkinSettings, type GalerkinSettings } from './galerkin-settings';
 import type { GalerkinSolverDetails } from './galerkin-solver-details';
 import {
   GalerkinInputError,
@@ -71,9 +68,7 @@ const fail = (message: string): GalerkinCaseOutcome => ({ ok: false, message });
  * equations and surface-layer Cs as the IEEE engines, with the body
  * weight picking the 50 kg or 70 kg limit.
  */
-export function evaluateGalerkinCase(
-  input: GalerkinCaseInput,
-): GalerkinCaseOutcome {
+export function evaluateGalerkinCase(input: GalerkinCaseInput): GalerkinCaseOutcome {
   const { grid, fault, settings, soilLayers } = input;
 
   if (soilLayers.length !== 1) {
@@ -88,29 +83,15 @@ export function evaluateGalerkinCase(
       fault.splitFactor > 0 && fault.splitFactor <= 1,
       'ضریب تقسیم جریان باید بیشتر از صفر و حداکثر برابر با ۱ باشد.',
     ],
-    [
-      fault.decrementFactor >= 1,
-      'ضریب کاهشی جریان باید بزرگ‌تر یا مساوی ۱ باشد.',
-    ],
+    [fault.decrementFactor >= 1, 'ضریب کاهشی جریان باید بزرگ‌تر یا مساوی ۱ باشد.'],
     [fault.shockDuration > 0, 'مدت زمان شوک باید بزرگ‌تر از صفر باشد.'],
     [settings.bodyWeight > 0, 'وزن بدن باید بزرگ‌تر از صفر باشد.'],
-    [
-      settings.surfaceLayerThickness >= 0,
-      'ضخامت لایه سطحی نمی‌تواند منفی باشد.',
-    ],
-    [
-      settings.surfaceLayerResistivity >= 0,
-      'مقاومت ویژه لایه سطحی نمی‌تواند منفی باشد.',
-    ],
+    [settings.surfaceLayerThickness >= 0, 'ضخامت لایه سطحی نمی‌تواند منفی باشد.'],
+    [settings.surfaceLayerResistivity >= 0, 'مقاومت ویژه لایه سطحی نمی‌تواند منفی باشد.'],
     [grid.length > 0 && grid.width > 0, 'ابعاد شبکه باید بزرگ‌تر از صفر باشد.'],
   ];
   for (const [ok, message] of checks) {
-    if (
-      !ok ||
-      [fault, settings, grid].some((group) =>
-        Object.values(group).some((v) => !Number.isFinite(v)),
-      )
-    ) {
+    if (!ok || [fault, settings, grid].some((group) => Object.values(group).some((v) => !Number.isFinite(v)))) {
       return fail(message);
     }
   }
@@ -177,6 +158,8 @@ export function evaluateGalerkinCase(
           wellCount: summary.wellCount,
           meshCount: result.details.meshCount,
           surgeImpedance: result.details.surgeImpedance,
+          soilResistivity,
+          groundCurrent,
         },
       },
       samples: result.samples,

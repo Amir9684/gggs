@@ -15,18 +15,17 @@ export enum ReportTemplate {
   IEEE_80_86_TWO_LAYER = 'IEEE_80_86_TWO_LAYER',
   IEEE_80_2000_ONE_LAYER = 'IEEE_80_2000_ONE_LAYER',
   IEEE_80_2000_TWO_LAYER = 'IEEE_80_2000_TWO_LAYER',
+  GALERKIN = 'GALERKIN',
 }
 
-export type ConcreteReportTemplate = Exclude<
-  ReportTemplate,
-  ReportTemplate.AUTO
->;
+export type ConcreteReportTemplate = Exclude<ReportTemplate, ReportTemplate.AUTO>;
 
 export const CONCRETE_REPORT_TEMPLATES: readonly ConcreteReportTemplate[] = [
   ReportTemplate.IEEE_80_86_ONE_LAYER,
   ReportTemplate.IEEE_80_86_TWO_LAYER,
   ReportTemplate.IEEE_80_2000_ONE_LAYER,
   ReportTemplate.IEEE_80_2000_TWO_LAYER,
+  ReportTemplate.GALERKIN,
 ];
 
 export const REPORT_TEMPLATE_LABELS_FA: Record<ConcreteReportTemplate, string> =
@@ -35,12 +34,15 @@ export const REPORT_TEMPLATE_LABELS_FA: Record<ConcreteReportTemplate, string> =
     [ReportTemplate.IEEE_80_86_TWO_LAYER]: 'IEEE 80-86 (خاک دولایه)',
     [ReportTemplate.IEEE_80_2000_ONE_LAYER]: 'IEEE 80-2000 (خاک تک‌لایه)',
     [ReportTemplate.IEEE_80_2000_TWO_LAYER]: 'IEEE 80-2000 (خاک دولایه)',
+    [ReportTemplate.GALERKIN]: 'گالرکین (Galerkin)',
   };
 
 /** The design method a concrete template belongs to. */
 export function templateDesignMethod(
   template: ConcreteReportTemplate,
 ): DesignMethod {
+  if (template === ReportTemplate.GALERKIN) return DesignMethod.GALERKIN;
+
   return template === ReportTemplate.IEEE_80_86_ONE_LAYER ||
     template === ReportTemplate.IEEE_80_86_TWO_LAYER
     ? DesignMethod.IEEE_80_86
@@ -55,9 +57,8 @@ export function isTwoLayerTemplate(template: ConcreteReportTemplate): boolean {
 }
 
 /**
- * The template that matches a case, or `null` when the case's method has
- * no report (Galerkin: no engine yet, so there is nothing to report).
- * An IEEE case without a stored layering is treated as one-layer, like
+ * The template that matches a case (`null` is kept for a method that
+ * gains a solver before its report layout). An IEEE case without a stored layering is treated as one-layer, like
  * the calculation service does.
  */
 export function resolveReportTemplate(
@@ -76,7 +77,7 @@ export function resolveReportTemplate(
         ? ReportTemplate.IEEE_80_2000_TWO_LAYER
         : ReportTemplate.IEEE_80_2000_ONE_LAYER;
     case DesignMethod.GALERKIN:
-      return null;
+      return ReportTemplate.GALERKIN;
   }
 }
 
@@ -100,7 +101,7 @@ export function chooseReportTemplate(
   if (!matching) {
     return {
       ok: false,
-      message: 'برای روش گالرکین هنوز قالب گزارشی وجود ندارد.',
+      message: 'برای روش این کیس هنوز قالب گزارشی وجود ندارد.',
     };
   }
 
