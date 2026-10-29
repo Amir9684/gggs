@@ -184,30 +184,29 @@ export class ReportsService {
         touchVoltageMap,
         stepVoltageMap,
         voltageProfile,
-      ] =
-        await Promise.all([
-          this.caseFaultRepository.findOne({
-            where: { calculationCase: { id: calculationCase.id } },
-            order: { createdAt: 'DESC' },
-          }),
-          this.caseSettingRepository.findOne({
-            where: { calculationCase: { id: calculationCase.id } },
-            order: { createdAt: 'DESC' },
-          }),
-          this.caseConductorRepository.findOne({
-            where: { calculationCase: { id: calculationCase.id } },
-            order: { createdAt: 'DESC' },
-          }),
-          this.touchVoltageMapRepository.find({
-            where: { result: { id: result.id } },
-          }),
-          this.stepVoltageMapRepository.find({
-            where: { result: { id: result.id } },
-          }),
-          this.voltageProfileRepository.find({
-            where: { result: { id: result.id } },
-          }),
-        ]);
+      ] = await Promise.all([
+        this.caseFaultRepository.findOne({
+          where: { calculationCase: { id: calculationCase.id } },
+          order: { createdAt: 'DESC' },
+        }),
+        this.caseSettingRepository.findOne({
+          where: { calculationCase: { id: calculationCase.id } },
+          order: { createdAt: 'DESC' },
+        }),
+        this.caseConductorRepository.findOne({
+          where: { calculationCase: { id: calculationCase.id } },
+          order: { createdAt: 'DESC' },
+        }),
+        this.touchVoltageMapRepository.find({
+          where: { result: { id: result.id } },
+        }),
+        this.stepVoltageMapRepository.find({
+          where: { result: { id: result.id } },
+        }),
+        this.voltageProfileRepository.find({
+          where: { result: { id: result.id } },
+        }),
+      ]);
 
       const halfSecond = resolveHalfSecondVariant(
         fault ? Number(fault.faultDuration) : 0,
@@ -479,4 +478,3 @@ export class ReportsService {
     });
   }
 }
-

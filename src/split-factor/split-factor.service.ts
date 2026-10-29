@@ -4,8 +4,10 @@ import { TAuthenticatedUserType } from 'src/auth/types/authenticated-request.typ
 import asyncFn from 'src/common/helper/async';
 import { HttpStatus } from 'src/common/types';
 
+import { Ieee80CalculateDto } from './dto/ieee80-calculate.dto';
 import { SoniCalculateDto } from './dto/soni-calculate.dto';
 import { abs, type Complex } from './engine/complex';
+import { computeIeee80SplitFactor } from './engine/ieee80-split-factor.engine';
 import { computeSoniSplitFactor, SoniResult } from './engine/soni.engine';
 import { GroundWiresService } from './ground-wires.service';
 import {
@@ -32,6 +34,31 @@ export const toComplexValue = (value: Complex): ComplexValue => ({
 @Injectable()
 export class SplitFactorService {
   constructor(private readonly groundWiresService: GroundWiresService) {}
+
+  /**
+   * Stateless IEEE Std 80 split factor from the Annex C curves: nothing
+   * is saved and no catalog is needed.
+   */
+  calculateIeee80(dto: Ieee80CalculateDto) {
+    return asyncFn(() => {
+      try {
+        return {
+          statusCode: HttpStatus.OK,
+          messages: [],
+          data: computeIeee80SplitFactor(dto),
+        };
+      } catch (error) {
+        // For example a combination with no curve (no lines at all).
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: `محاسبه با این داده‌ها ممکن نیست: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        };
+      }
+    });
+  }
 
   /**
    * Stateless Soni ("Approximate") split factor: nothing is saved.

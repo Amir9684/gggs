@@ -65,7 +65,10 @@ export function buildReportPdf(data: ReportPdfData): Promise<Buffer> {
       decrementFactorSection(doc, data);
 
       // ── 2. Details ────────────────────────────────────────────────
-      if (data.options.includeDetails && data.template === ReportTemplate.GALERKIN) {
+      if (
+        data.options.includeDetails &&
+        data.template === ReportTemplate.GALERKIN
+      ) {
         // The Galerkin solver has no IEEE factors: its detail page is the
         // solver inputs, followed by the method description.
         doc.addPage();
@@ -116,4 +119,3 @@ export function buildReportPdf(data: ReportPdfData): Promise<Buffer> {
     }
   });
 }
-

@@ -10,10 +10,26 @@ import {
 
 describe('resolveReportTemplate', () => {
   it.each([
-    [DesignMethod.IEEE_80_86, SoilLayeringMethod.ONE_LAYER, ReportTemplate.IEEE_80_86_ONE_LAYER],
-    [DesignMethod.IEEE_80_86, SoilLayeringMethod.TWO_LAYER, ReportTemplate.IEEE_80_86_TWO_LAYER],
-    [DesignMethod.IEEE_80_2000, SoilLayeringMethod.ONE_LAYER, ReportTemplate.IEEE_80_2000_ONE_LAYER],
-    [DesignMethod.IEEE_80_2000, SoilLayeringMethod.TWO_LAYER, ReportTemplate.IEEE_80_2000_TWO_LAYER],
+    [
+      DesignMethod.IEEE_80_86,
+      SoilLayeringMethod.ONE_LAYER,
+      ReportTemplate.IEEE_80_86_ONE_LAYER,
+    ],
+    [
+      DesignMethod.IEEE_80_86,
+      SoilLayeringMethod.TWO_LAYER,
+      ReportTemplate.IEEE_80_86_TWO_LAYER,
+    ],
+    [
+      DesignMethod.IEEE_80_2000,
+      SoilLayeringMethod.ONE_LAYER,
+      ReportTemplate.IEEE_80_2000_ONE_LAYER,
+    ],
+    [
+      DesignMethod.IEEE_80_2000,
+      SoilLayeringMethod.TWO_LAYER,
+      ReportTemplate.IEEE_80_2000_TWO_LAYER,
+    ],
   ])('maps %s + %s to %s', (method, layering, expected) => {
     expect(resolveReportTemplate(method, layering)).toBe(expected);
   });
@@ -31,7 +47,9 @@ describe('resolveReportTemplate', () => {
     expect(resolveReportTemplate(DesignMethod.GALERKIN, null)).toBe(
       ReportTemplate.GALERKIN,
     );
-    expect(templateDesignMethod(ReportTemplate.GALERKIN)).toBe(DesignMethod.GALERKIN);
+    expect(templateDesignMethod(ReportTemplate.GALERKIN)).toBe(
+      DesignMethod.GALERKIN,
+    );
     expect(isTwoLayerTemplate(ReportTemplate.GALERKIN)).toBe(false);
   });
 });
@@ -44,7 +62,9 @@ describe('template helpers', () => {
     expect(templateDesignMethod(ReportTemplate.IEEE_80_2000_ONE_LAYER)).toBe(
       DesignMethod.IEEE_80_2000,
     );
-    expect(isTwoLayerTemplate(ReportTemplate.IEEE_80_2000_TWO_LAYER)).toBe(true);
+    expect(isTwoLayerTemplate(ReportTemplate.IEEE_80_2000_TWO_LAYER)).toBe(
+      true,
+    );
     expect(isTwoLayerTemplate(ReportTemplate.IEEE_80_86_ONE_LAYER)).toBe(false);
   });
 });

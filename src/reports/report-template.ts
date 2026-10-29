@@ -18,7 +18,10 @@ export enum ReportTemplate {
   GALERKIN = 'GALERKIN',
 }
 
-export type ConcreteReportTemplate = Exclude<ReportTemplate, ReportTemplate.AUTO>;
+export type ConcreteReportTemplate = Exclude<
+  ReportTemplate,
+  ReportTemplate.AUTO
+>;
 
 export const CONCRETE_REPORT_TEMPLATES: readonly ConcreteReportTemplate[] = [
   ReportTemplate.IEEE_80_86_ONE_LAYER,
