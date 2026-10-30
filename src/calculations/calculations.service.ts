@@ -23,6 +23,7 @@ import { VoltageProfile } from './entities/voltage-profile.entity';
 import { Report } from 'src/reports/entities/report.entity';
 
 import { UpdateGalerkinSettingsDto } from 'src/galerkin/dto/update-galerkin-settings.dto';
+import { UpdateSplitFactorDto } from './dto/update-split-factor.dto';
 import { evaluateGalerkinCase } from 'src/galerkin/galerkin-case.evaluator';
 import { resolveGalerkinSettings } from 'src/galerkin/galerkin-settings';
 
@@ -1202,6 +1203,53 @@ export class CalculationsService {
   }
 
   /**
+   * Sets the current split factor Sf of a case's fault parameters, for
+   * "use the split factor in the case" from the split factor module.
+   * Earlier results were computed with the old value, so the response says
+   * the case must be run again.
+   */
+  updateSplitFactor(
+    id: string,
+    dto: UpdateSplitFactorDto,
+    user: TAuthenticatedUserType,
+  ) {
+    return asyncFn(async () => {
+      const calculationCase = await this.findOwnedOrAdmin(id, user);
+
+      if (!calculationCase) {
+        return {
+          statusCode: HttpStatus.NOT_FOUND,
+          data: null,
+          messages: `کیس محاسباتی با آیدی: ${id} یافت نشد.`,
+        };
+      }
+
+      const fault = await this.caseFaultRepository.findOne({
+        where: { calculationCase: { id } },
+        order: { createdAt: 'DESC' },
+      });
+
+      if (!fault) {
+        return {
+          statusCode: HttpStatus.BAD_REQUEST,
+          data: null,
+          messages: 'برای این کیس اطلاعات خطا ثبت نشده است.',
+        };
+      }
+
+      fault.splitFactor = dto.splitFactor;
+      await this.caseFaultRepository.save(fault);
+
+      return {
+        statusCode: HttpStatus.OK,
+        messages:
+          'ضریب تقسیم جریان کیس به‌روز شد. نتایج قبلی با مقدار قدیمی محاسبه شده‌اند؛ محاسبه را دوباره اجرا کنید.',
+        data: { id, splitFactor: Number(fault.splitFactor) },
+      };
+    });
+  }
+
+  /**
    * Saves the Galerkin solver inputs of a Galerkin case; omitted fields
    * keep their current (or default) value.
    */
@@ -1225,8 +1273,7 @@ export class CalculationsService {
         return {
           statusCode: HttpStatus.BAD_REQUEST,
           data: null,
-          messages:
-            'تنظیمات گالرکین فقط برای کیس‌های روش گالرکین قابل ثبت است.',
+          messages: 'تنظیمات گالرکین فقط برای کیس‌های روش گالرکین قابل ثبت است.',
         };
       }
 
@@ -1447,3 +1494,4 @@ export class CalculationsService {
     });
   }
 }
+

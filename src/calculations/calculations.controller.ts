@@ -19,6 +19,7 @@ import { UpdateCalculationCaseDto } from './dto/update-calculation-case.dto';
 import { GetCalculationCasesQueryDTO } from './dto/get-calculation-cases-query.dto';
 import { PreviewCalculationDto } from './dto/preview-calculation.dto';
 import { UpdateGalerkinSettingsDto } from 'src/galerkin/dto/update-galerkin-settings.dto';
+import { UpdateSplitFactorDto } from './dto/update-split-factor.dto';
 
 /**
  * Every route is scoped to the requesting user's own projects via the
@@ -57,6 +58,20 @@ export class CalculationsController {
     @CurrentUser() user: TAuthenticatedUserType,
   ) {
     return this.calculationsService.update(id, updateCalculationCaseDto, user);
+  }
+
+  /** Split factor of the case's fault parameters (from the split factor module). */
+  @Put(':id/split-factor')
+  updateSplitFactor(
+    @Param('id') id: string,
+    @Body() updateSplitFactorDto: UpdateSplitFactorDto,
+    @CurrentUser() user: TAuthenticatedUserType,
+  ) {
+    return this.calculationsService.updateSplitFactor(
+      id,
+      updateSplitFactorDto,
+      user,
+    );
   }
 
   /** Galerkin solver inputs (segment length, rod radius, wells, Kro). */
@@ -110,3 +125,4 @@ export class CalculationsController {
     return this.calculationsService.getResults(id, user);
   }
 }
+
