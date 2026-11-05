@@ -1273,7 +1273,8 @@ export class CalculationsService {
         return {
           statusCode: HttpStatus.BAD_REQUEST,
           data: null,
-          messages: 'تنظیمات گالرکین فقط برای کیس‌های روش گالرکین قابل ثبت است.',
+          messages:
+            'تنظیمات گالرکین فقط برای کیس‌های روش گالرکین قابل ثبت است.',
         };
       }
 
@@ -1494,4 +1495,3 @@ export class CalculationsService {
     });
   }
 }
-

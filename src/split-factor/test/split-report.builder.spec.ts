@@ -1,4 +1,7 @@
-import { buildSplitReportPdf, type SplitReportData } from '../pdf/split-report.builder';
+import {
+  buildSplitReportPdf,
+  type SplitReportData,
+} from '../pdf/split-report.builder';
 import type { SoniRunDetails } from '../split-project.runner';
 
 /**
@@ -17,21 +20,55 @@ jest.mock('pdfkit', () => {
       this.handlers[event] = handler;
       return this;
     }
-    registerFont() { return this; }
-    font() { return this; }
-    fontSize() { return this; }
-    fillColor() { return this; }
-    strokeColor() { return this; }
-    lineWidth() { return this; }
-    rect() { return this; }
-    fill() { return this; }
-    stroke() { return this; }
-    moveTo() { return this; }
-    lineTo() { return this; }
-    moveDown(lines = 1) { this.y += lines * 12; return this; }
-    heightOfString() { return 12; }
-    addPage() { this.y = 50; return this; }
-    text(value: string) { mockTexts.push(value); this.y += 14; return this; }
+    registerFont() {
+      return this;
+    }
+    font() {
+      return this;
+    }
+    fontSize() {
+      return this;
+    }
+    fillColor() {
+      return this;
+    }
+    strokeColor() {
+      return this;
+    }
+    lineWidth() {
+      return this;
+    }
+    rect() {
+      return this;
+    }
+    fill() {
+      return this;
+    }
+    stroke() {
+      return this;
+    }
+    moveTo() {
+      return this;
+    }
+    lineTo() {
+      return this;
+    }
+    moveDown(lines = 1) {
+      this.y += lines * 12;
+      return this;
+    }
+    heightOfString() {
+      return 12;
+    }
+    addPage() {
+      this.y = 50;
+      return this;
+    }
+    text(value: string) {
+      mockTexts.push(value);
+      this.y += 14;
+      return this;
+    }
     end() {
       this.handlers['data']?.(Buffer.from('%PDF-fake'));
       this.handlers['end']?.();
@@ -60,7 +97,9 @@ const baseDetails: SoniRunDetails = {
   ],
 };
 
-const soniData = (overrides: Partial<SplitReportData> = {}): SplitReportData => ({
+const soniData = (
+  overrides: Partial<SplitReportData> = {},
+): SplitReportData => ({
   projectName: 'پست شمال',
   project: {
     method: 'SONI',
@@ -73,7 +112,13 @@ const soniData = (overrides: Partial<SplitReportData> = {}): SplitReportData => 
           faultCurrent: { re: 400, im: -500 },
           spanLength: 500,
           towerFootingResistance: 10,
-          groundWire: { source: 'CATALOG', groundWireId: 'w1', earthResistivity: 1000, resistanceSource: 'AC', reactanceSource: 'GMR' },
+          groundWire: {
+            source: 'CATALOG',
+            groundWireId: 'w1',
+            earthResistivity: 1000,
+            resistanceSource: 'AC',
+            reactanceSource: 'GMR',
+          },
           mutualImpedance: { re: 0.00005, im: 0.00038 },
         },
       ],
@@ -85,11 +130,19 @@ const soniData = (overrides: Partial<SplitReportData> = {}): SplitReportData => 
   ...overrides,
 });
 
-const ieee80Data = (overrides: Partial<SplitReportData> = {}): SplitReportData => ({
+const ieee80Data = (
+  overrides: Partial<SplitReportData> = {},
+): SplitReportData => ({
   projectName: 'پست جنوب',
   project: {
     method: 'IEEE80',
-    input: { faultType: 1, footingSet: 1, transmissionLines: 2, distributionLines: 4, gridResistance: 0.5 },
+    input: {
+      faultType: 1,
+      footingSet: 1,
+      transmissionLines: 2,
+      distributionLines: 4,
+      gridResistance: 0.5,
+    },
   },
   outcome: { splitFactor: 31.2, warnings: [], details: { clamped: null } },
   wireNames: {},
@@ -132,7 +185,10 @@ describe('buildSplitReportPdf', () => {
   it('says a directly typed impedance was typed', async () => {
     const data = soniData();
     if (data.project.method !== 'SONI') throw new Error('unexpected');
-    data.project.input.terminals[0].groundWire = { source: 'DIRECT', impedance: { re: 0.55, im: 0.9 } };
+    data.project.input.terminals[0].groundWire = {
+      source: 'DIRECT',
+      impedance: { re: 0.55, im: 0.9 },
+    };
     await build(data);
 
     expect(has('ورود مستقیم امپدانس')).toBe(true);
@@ -151,7 +207,15 @@ describe('buildSplitReportPdf', () => {
   });
 
   it('prints warnings in their own section', async () => {
-    await build(soniData({ outcome: { splitFactor: 120, warnings: ['ضریب تقسیم بیشتر از ۱۰۰٪ شد'], details: baseDetails } }));
+    await build(
+      soniData({
+        outcome: {
+          splitFactor: 120,
+          warnings: ['ضریب تقسیم بیشتر از ۱۰۰٪ شد'],
+          details: baseDetails,
+        },
+      }),
+    );
 
     expect(has('هشدارها')).toBe(true);
     expect(has('ضریب تقسیم بیشتر از ۱۰۰٪ شد')).toBe(true);
@@ -161,7 +225,11 @@ describe('buildSplitReportPdf', () => {
   });
 
   it('notes a clamped IEEE 80 resistance', async () => {
-    await build(ieee80Data({ outcome: { splitFactor: 80, warnings: [], details: { clamped: 'LOW' } } }));
+    await build(
+      ieee80Data({
+        outcome: { splitFactor: 80, warnings: [], details: { clamped: 'LOW' } },
+      }),
+    );
 
     expect(has('خارج از بازهٔ منحنی‌ها بود')).toBe(true);
   });

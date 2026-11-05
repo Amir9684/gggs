@@ -1,6 +1,9 @@
 import type { Complex } from './engine/complex';
 import { abs } from './engine/complex';
-import { computeIeee80SplitFactor, type Ieee80Input } from './engine/ieee80-split-factor.engine';
+import {
+  computeIeee80SplitFactor,
+  type Ieee80Input,
+} from './engine/ieee80-split-factor.engine';
 import { computeSoniSplitFactor } from './engine/soni.engine';
 import type { SoniCalculateInput } from './dto/soni-calculate.dto';
 import {

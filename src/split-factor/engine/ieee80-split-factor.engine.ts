@@ -2,7 +2,8 @@ import { IEEE80_CURVES } from './ieee80-curves.data';
 
 /** Grid resistances (ohm) the curves are tabulated at (Windows `X(1..21)`). */
 export const CURVE_GRID_RESISTANCES: readonly number[] = [
-  0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 25,
+  0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  20, 25,
 ];
 
 /** Tabulated numbers of transmission / distribution lines (Windows `T_N` / `D_N`). */
@@ -77,7 +78,11 @@ export function interpolateCurve(
  * the count 5 lies between 4 and 8, a quarter of the way up (weight 0.25).
  * An exact grid count, and 18, have weight 0 (no next curve is needed).
  */
-function bracket(count: number): { lower: number; upper: number; weight: number } {
+function bracket(count: number): {
+  lower: number;
+  upper: number;
+  weight: number;
+} {
   let lowerIndex = 0;
   for (let i = 0; i < CURVE_LINE_COUNTS.length; i += 1) {
     if (CURVE_LINE_COUNTS[i] <= count) lowerIndex = i;
@@ -92,9 +97,15 @@ function bracket(count: number): { lower: number; upper: number; weight: number 
   return { lower, upper, weight: (count - lower) / (upper - lower) };
 }
 
-function curveValue(input: Ieee80Input, transmission: number, distribution: number) {
+function curveValue(
+  input: Ieee80Input,
+  transmission: number,
+  distribution: number,
+) {
   const curve =
-    IEEE80_CURVES[curveKey(input.faultType, input.footingSet, transmission, distribution)];
+    IEEE80_CURVES[
+      curveKey(input.faultType, input.footingSet, transmission, distribution)
+    ];
   if (!curve) {
     throw new Error(
       `No standard curve exists for ${transmission} transmission and ${distribution} distribution lines with this fault type.`,
@@ -114,7 +125,13 @@ function curveValue(input: Ieee80Input, transmission: number, distribution: numb
  * on a missing one).
  */
 export function computeIeee80SplitFactor(input: Ieee80Input): Ieee80Result {
-  const { faultType, footingSet, transmissionLines, distributionLines, gridResistance } = input;
+  const {
+    faultType,
+    footingSet,
+    transmissionLines,
+    distributionLines,
+    gridResistance,
+  } = input;
 
   if (![1, 2, 3, 4].includes(faultType)) {
     throw new Error('The fault type must be 1, 2, 3 or 4.');
@@ -127,7 +144,9 @@ export function computeIeee80SplitFactor(input: Ieee80Input): Ieee80Result {
     ['distribution', distributionLines],
   ] as const) {
     if (!Number.isInteger(count) || count < 0 || count > MAX_LINES) {
-      throw new Error(`The number of ${label} lines must be a whole number from 0 to ${MAX_LINES}.`);
+      throw new Error(
+        `The number of ${label} lines must be a whole number from 0 to ${MAX_LINES}.`,
+      );
     }
   }
   if (!(gridResistance > 0) || !Number.isFinite(gridResistance)) {
@@ -139,7 +158,11 @@ export function computeIeee80SplitFactor(input: Ieee80Input): Ieee80Result {
 
   let clamped: Ieee80Result['clamped'] = null;
   const at = (transmission: number, distribution: number) => {
-    const { value, clamped: how } = curveValue(input, transmission, distribution);
+    const { value, clamped: how } = curveValue(
+      input,
+      transmission,
+      distribution,
+    );
     clamped = how ?? clamped;
     return value;
   };
@@ -147,12 +170,16 @@ export function computeIeee80SplitFactor(input: Ieee80Input): Ieee80Result {
   // Interpolate along the transmission count at one distribution count.
   const alongTransmission = (distribution: number) => {
     const low = at(t.lower, distribution);
-    return t.weight === 0 ? low : low + t.weight * (at(t.upper, distribution) - low);
+    return t.weight === 0
+      ? low
+      : low + t.weight * (at(t.upper, distribution) - low);
   };
 
   const lowRow = alongTransmission(d.lower);
   const splitFactor =
-    d.weight === 0 ? lowRow : lowRow + d.weight * (alongTransmission(d.upper) - lowRow);
+    d.weight === 0
+      ? lowRow
+      : lowRow + d.weight * (alongTransmission(d.upper) - lowRow);
 
   return { splitFactor, clamped };
 }

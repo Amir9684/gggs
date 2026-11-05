@@ -9,8 +9,14 @@ const RULES: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
     () =>
       'دستگاه معادلات حل‌پذیر نیست (ماتریس تکین است). مقاومت‌ها و امپدانس‌ها را بررسی کنید.',
   ],
-  [/division by a zero/i, () => 'تقسیم بر صفر: امپدانس سیم گارد نباید صفر باشد.'],
-  [/earth resistivity must be positive/i, () => 'مقاومت ویژه خاک باید بزرگ‌تر از صفر باشد.'],
+  [
+    /division by a zero/i,
+    () => 'تقسیم بر صفر: امپدانس سیم گارد نباید صفر باشد.',
+  ],
+  [
+    /earth resistivity must be positive/i,
+    () => 'مقاومت ویژه خاک باید بزرگ‌تر از صفر باشد.',
+  ],
   [/frequency must be positive/i, () => 'فرکانس باید بزرگ‌تر از صفر باشد.'],
   [/gmr must be positive/i, () => 'GMR سیم گارد باید بزرگ‌تر از صفر باشد.'],
   [/span length must be positive/i, () => 'طول span باید بزرگ‌تر از صفر باشد.'],
@@ -40,7 +46,10 @@ const RULES: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
     /number of (transmission|distribution) lines/i,
     () => 'تعداد خطوط باید عدد صحیح بین ۰ و ۱۸ باشد.',
   ],
-  [/ground wire .* was not found/i, () => 'سیم گارد مورد استفاده در کاتالوگ یافت نشد.'],
+  [
+    /ground wire .* was not found/i,
+    () => 'سیم گارد مورد استفاده در کاتالوگ یافت نشد.',
+  ],
 ];
 
 export function describeSplitError(error: unknown): string {

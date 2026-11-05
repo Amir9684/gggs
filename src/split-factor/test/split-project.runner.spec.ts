@@ -9,7 +9,12 @@ import {
 } from '../split-project.runner';
 import { buildSoniInput, type CatalogWire } from '../soni-input.builder';
 
-const wire: CatalogWire = { acResistance: 0.5, dcResistance: 0.45, gmr: 0.003, reactance: 0.1 };
+const wire: CatalogWire = {
+  acResistance: 0.5,
+  dcResistance: 0.45,
+  gmr: 0.003,
+  reactance: 0.1,
+};
 
 const soniDirect: SplitProjectInput = {
   method: 'SONI',
@@ -67,7 +72,9 @@ describe('runSplitProject', () => {
   it('runs the Soni method on a directly typed impedance and keeps the details', () => {
     const outcome = runSplitProject(soniDirect, new Map());
 
-    const expected = computeSoniSplitFactor(buildSoniInput(soniDirect.input as never, new Map()));
+    const expected = computeSoniSplitFactor(
+      buildSoniInput(soniDirect.input, new Map()),
+    );
     expect(outcome.splitFactor).toBeCloseTo(expected.splitFactor, 10);
     expect(outcome.splitFactor).toBeGreaterThan(0);
     expect(outcome.splitFactor).toBeLessThan(100);
@@ -110,14 +117,24 @@ describe('runSplitProject', () => {
   it('runs the IEEE 80 curves method', () => {
     const outcome = runSplitProject(ieee80, new Map());
 
-    expect(outcome.splitFactor).toBeCloseTo(computeIeee80SplitFactor(ieee80.input as never).splitFactor, 10);
+    expect(outcome.splitFactor).toBeCloseTo(
+      computeIeee80SplitFactor(ieee80.input).splitFactor,
+      10,
+    );
     expect(outcome.details).toEqual({ clamped: null });
   });
 
   it('passes an engine error on, for a combination with no curve', () => {
     expect(() =>
       runSplitProject(
-        { method: 'IEEE80', input: { ...(ieee80.input as object), transmissionLines: 0, distributionLines: 0 } as never },
+        {
+          method: 'IEEE80',
+          input: {
+            ...(ieee80.input as object),
+            transmissionLines: 0,
+            distributionLines: 0,
+          } as never,
+        },
         new Map(),
       ),
     ).toThrow();
@@ -132,13 +149,17 @@ describe('warnings and details', () => {
       1000,
       50,
     );
-    const details = catalog.details as { terminals: Array<{ groundWireImpedance: { re: number; im: number } }> };
+    const details = catalog.details as {
+      terminals: Array<{ groundWireImpedance: { re: number; im: number } }>;
+    };
 
     expect(details.terminals[0].groundWireImpedance.re).toBeCloseTo(zgw.re, 10);
     expect(details.terminals[0].groundWireImpedance.im).toBeCloseTo(zgw.im, 10);
 
     const direct = runSplitProject(soniDirect, new Map());
-    const directDetails = direct.details as { terminals: Array<{ groundWireImpedance: { re: number } }> };
+    const directDetails = direct.details as {
+      terminals: Array<{ groundWireImpedance: { re: number } }>;
+    };
     expect(directDetails.terminals[0].groundWireImpedance.re).toBe(0.55);
   });
 
@@ -149,7 +170,10 @@ describe('warnings and details', () => {
 
   it('warns when Rg is outside the IEEE 80 curves', () => {
     const outcome = runSplitProject(
-      { method: 'IEEE80', input: { ...(ieee80.input as object), gridResistance: 0.05 } as never },
+      {
+        method: 'IEEE80',
+        input: { ...(ieee80.input as object), gridResistance: 0.05 } as never,
+      },
       new Map(),
     );
 

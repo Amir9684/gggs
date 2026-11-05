@@ -119,7 +119,10 @@ export class SplitProjectsService {
         const parsed = parseSplitInput(project.method, dto.input);
         if (!parsed.ok) return badRequest(parsed.messages);
 
-        project.input = parsed.project.input as unknown as Record<string, unknown>;
+        project.input = parsed.project.input as unknown as Record<
+          string,
+          unknown
+        >;
         // The stored result belongs to the old input.
         project.lastResult = null;
       }
@@ -252,7 +255,10 @@ export class SplitProjectsService {
         messages: [],
         data: {
           buffer,
-          fileName: `ضریب تقسیم - ${project.name}.pdf`.replace(/[\\/:*?"<>|]/g, '_'),
+          fileName: `ضریب تقسیم - ${project.name}.pdf`.replace(
+            /[\\/:*?"<>|]/g,
+            '_',
+          ),
         },
       };
     });

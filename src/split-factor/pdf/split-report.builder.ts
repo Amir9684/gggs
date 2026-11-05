@@ -76,7 +76,11 @@ function header(doc: Doc, data: SplitReportData): void {
   doc.moveDown(1);
 }
 
-function soniInputs(doc: Doc, data: SplitReportData, details: SoniRunDetails): void {
+function soniInputs(
+  doc: Doc,
+  data: SplitReportData,
+  details: SoniRunDetails,
+): void {
   if (data.project.method !== 'SONI') return;
   const { input } = data.project;
 
@@ -85,23 +89,35 @@ function soniInputs(doc: Doc, data: SplitReportData, details: SoniRunDetails): v
   row(doc, 'فرکانس', `${n(input.frequency, 0)} Hz`);
 
   input.terminals.forEach((terminal, index) => {
-    sectionTitle(doc, `ترمینال ${index + 1}${terminal.name ? ` — ${terminal.name}` : ''}`);
+    sectionTitle(
+      doc,
+      `ترمینال ${index + 1}${terminal.name ? ` — ${terminal.name}` : ''}`,
+    );
 
     row(
       doc,
       'جریان خطا (Ir)',
       `${n(Math.hypot(terminal.faultCurrent.re, terminal.faultCurrent.im))} \u2220 ${n(
-        (Math.atan2(terminal.faultCurrent.im, terminal.faultCurrent.re) * 180) / Math.PI,
+        (Math.atan2(terminal.faultCurrent.im, terminal.faultCurrent.re) * 180) /
+          Math.PI,
         1,
       )}\u00b0 A`,
     );
     row(doc, 'طول span', `${n(terminal.spanLength)} m`);
-    row(doc, 'مقاومت پایه دکل (Rft)', `${n(terminal.towerFootingResistance)} ${OHM}`);
+    row(
+      doc,
+      'مقاومت پایه دکل (Rft)',
+      `${n(terminal.towerFootingResistance)} ${OHM}`,
+    );
 
     const wire = terminal.groundWire;
     if (wire.source === 'CATALOG') {
       row(doc, 'سیم گارد', data.wireNames[wire.groundWireId] ?? '—');
-      row(doc, 'مقاومت ویژه خاک (ρ)', `${n(wire.earthResistivity)} ${OHM}\u00b7m`);
+      row(
+        doc,
+        'مقاومت ویژه خاک (ρ)',
+        `${n(wire.earthResistivity)} ${OHM}\u00b7m`,
+      );
       row(
         doc,
         'مقاومت و راکتانس سیم',
@@ -138,14 +154,22 @@ function soniMethod(doc: Doc): void {
   ]);
 }
 
-function soniResults(doc: Doc, outcome: SplitRunOutcome, details: SoniRunDetails): void {
+function soniResults(
+  doc: Doc,
+  outcome: SplitRunOutcome,
+  details: SoniRunDetails,
+): void {
   sectionTitle(doc, 'نتایج');
   row(doc, 'ضریب تقسیم جریان (Sf)', `${n(outcome.splitFactor, 2)} %`);
   row(doc, 'مجموع جریان خطا', polarText(details.totalFaultCurrent, 'A'));
   row(doc, 'جریان وارد شبکه (Ig)', polarText(details.gridCurrent, 'A'));
 
   paragraph(doc, 'امپدانس معادل و جریان برگشتی هر ترمینال:');
-  tableRow(doc, [{ text: 'ترمینال' }, { text: `Ze (${OHM})` }, { text: 'Ie (A)' }], { bold: true });
+  tableRow(
+    doc,
+    [{ text: 'ترمینال' }, { text: `Ze (${OHM})` }, { text: 'Ie (A)' }],
+    { bold: true },
+  );
   details.terminals.forEach((terminal, index) => {
     tableRow(doc, [
       { text: terminal.name || String(index + 1) },
@@ -155,14 +179,26 @@ function soniResults(doc: Doc, outcome: SplitRunOutcome, details: SoniRunDetails
   });
 }
 
-function ieee80Sections(doc: Doc, data: SplitReportData, outcome: SplitRunOutcome): void {
+function ieee80Sections(
+  doc: Doc,
+  data: SplitReportData,
+  outcome: SplitRunOutcome,
+): void {
   if (data.project.method !== 'IEEE80') return;
   const { input } = data.project;
   const details = outcome.details as Ieee80RunDetails;
 
   sectionTitle(doc, 'ورودی‌ها');
-  row(doc, 'توزیع جریان خطا', FAULT_TYPE_LABELS[input.faultType] ?? String(input.faultType));
-  row(doc, 'مقاومت پایه دکل', FOOTING_LABELS[input.footingSet] ?? String(input.footingSet));
+  row(
+    doc,
+    'توزیع جریان خطا',
+    FAULT_TYPE_LABELS[input.faultType] ?? String(input.faultType),
+  );
+  row(
+    doc,
+    'مقاومت پایه دکل',
+    FOOTING_LABELS[input.footingSet] ?? String(input.footingSet),
+  );
   row(doc, 'تعداد خطوط انتقال', n(input.transmissionLines, 0));
   row(doc, 'تعداد خطوط توزیع', n(input.distributionLines, 0));
   row(doc, 'مقاومت شبکه زمین (Rg)', `${n(input.gridResistance, 3)} ${OHM}`);
@@ -180,7 +216,10 @@ function ieee80Sections(doc: Doc, data: SplitReportData, outcome: SplitRunOutcom
   sectionTitle(doc, 'نتایج');
   row(doc, 'ضریب تقسیم جریان (Sf)', `${n(outcome.splitFactor, 2)} %`);
   if (details.clamped) {
-    paragraph(doc, 'مقاومت شبکه خارج از بازهٔ منحنی‌ها بود و مقدار نزدیک‌ترین نقطه به کار رفت.');
+    paragraph(
+      doc,
+      'مقاومت شبکه خارج از بازهٔ منحنی‌ها بود و مقدار نزدیک‌ترین نقطه به کار رفت.',
+    );
   }
 }
 

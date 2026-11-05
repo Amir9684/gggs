@@ -125,4 +125,3 @@ export class CalculationsController {
     return this.calculationsService.getResults(id, user);
   }
 }
-
