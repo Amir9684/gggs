@@ -124,6 +124,64 @@ describe('runSplitProject', () => {
   });
 });
 
+describe('warnings and details', () => {
+  it('keeps the ground wire impedance each terminal used', () => {
+    const catalog = runSplitProject(soniCatalog, new Map([['w1', wire]]));
+    const zgw = computeGroundWireImpedance(
+      { ...wire, resistanceSource: 'AC', reactanceSource: 'GMR' },
+      1000,
+      50,
+    );
+    const details = catalog.details as { terminals: Array<{ groundWireImpedance: { re: number; im: number } }> };
+
+    expect(details.terminals[0].groundWireImpedance.re).toBeCloseTo(zgw.re, 10);
+    expect(details.terminals[0].groundWireImpedance.im).toBeCloseTo(zgw.im, 10);
+
+    const direct = runSplitProject(soniDirect, new Map());
+    const directDetails = direct.details as { terminals: Array<{ groundWireImpedance: { re: number } }> };
+    expect(directDetails.terminals[0].groundWireImpedance.re).toBe(0.55);
+  });
+
+  it('has no warnings for ordinary data', () => {
+    expect(runSplitProject(soniDirect, new Map()).warnings).toEqual([]);
+    expect(runSplitProject(ieee80, new Map()).warnings).toEqual([]);
+  });
+
+  it('warns when Rg is outside the IEEE 80 curves', () => {
+    const outcome = runSplitProject(
+      { method: 'IEEE80', input: { ...(ieee80.input as object), gridResistance: 0.05 } as never },
+      new Map(),
+    );
+
+    expect(outcome.warnings).toHaveLength(1);
+    expect(outcome.warnings[0]).toContain('۰٫۱');
+  });
+
+  it('warns when the Soni split factor exceeds 100 %', () => {
+    // A very strong mutual coupling pushes the grid current above the fault current.
+    const strong: SplitProjectInput = {
+      method: 'SONI',
+      input: {
+        gridResistance: 0.05,
+        frequency: 50,
+        terminals: [
+          {
+            faultCurrent: { re: 400, im: -500 },
+            spanLength: 500,
+            towerFootingResistance: 10,
+            groundWire: { source: 'DIRECT', impedance: { re: 0.55, im: 0.9 } },
+            mutualImpedance: { re: 0, im: -100 },
+          },
+        ],
+      },
+    };
+    const outcome = runSplitProject(strong, new Map());
+
+    expect(outcome.splitFactor).toBeGreaterThan(100);
+    expect(outcome.warnings).toHaveLength(1);
+  });
+});
+
 describe('wireIdsOf', () => {
   it('lists catalog wires of a Soni project and none for IEEE 80', () => {
     expect(wireIdsOf(soniCatalog)).toEqual(['w1']);

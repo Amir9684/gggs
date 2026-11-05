@@ -11,8 +11,15 @@ import { CreateSplitProjectDto } from './dto/create-split-project.dto';
 import { UpdateSplitProjectDto } from './dto/update-split-project.dto';
 import { SplitProject } from './entities/split-project.entity';
 import { GroundWiresService } from './ground-wires.service';
+import { describeSplitError } from './split-error-messages';
 import { parseSplitInput } from './split-input.schema';
-import { runSplitProject, wireIdsOf } from './split-project.runner';
+import { buildSplitReportPdf } from './pdf/split-report.builder';
+import {
+  runSplitProject,
+  wireIdsOf,
+  type SplitProjectInput,
+  type SplitRunOutcome,
+} from './split-project.runner';
 import type { CatalogWire } from './soni-input.builder';
 
 const notFound = (id: string) => ({
@@ -140,51 +147,113 @@ export class SplitProjectsService {
     });
   }
 
+  /**
+   * Validates a project's stored input, loads the catalog wires it uses
+   * (scoped to the user) and runs its method. Shared by `calculate` and
+   * the report; the failure case is the response to send.
+   */
+  private async evaluate(
+    project: SplitProject,
+    user: TAuthenticatedUserType,
+  ): Promise<
+    | {
+        ok: true;
+        parsed: SplitProjectInput;
+        outcome: SplitRunOutcome;
+        wireNames: Record<string, string>;
+      }
+    | { ok: false; response: ReturnType<typeof badRequest> }
+  > {
+    // The stored input was validated when saved, but the schema may have
+    // moved on since; validating again keeps a stale project from
+    // reaching the engine as garbage.
+    const parsed = parseSplitInput(project.method, project.input);
+    if (!parsed.ok) return { ok: false, response: badRequest(parsed.messages) };
+
+    const wires = new Map<string, CatalogWire>();
+    const wireNames: Record<string, string> = {};
+    for (const wireId of wireIdsOf(parsed.project)) {
+      const wire = await this.groundWiresService.findOwnedOrAdmin(wireId, user);
+      if (!wire) {
+        return {
+          ok: false,
+          response: badRequest(
+            'سیم گاردی که در این پروژه استفاده شده در کاتالوگ وجود ندارد (حذف شده است). سیم را دوباره انتخاب کنید.',
+          ),
+        };
+      }
+      wires.set(wireId, wire);
+      wireNames[wireId] = wire.name;
+    }
+
+    try {
+      return {
+        ok: true,
+        parsed: parsed.project,
+        outcome: runSplitProject(parsed.project, wires),
+        wireNames,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        response: badRequest(
+          `محاسبه با این داده‌ها ممکن نیست: ${describeSplitError(error)}`,
+        ),
+      };
+    }
+  }
+
   /** Runs the project's method on its stored input and stores the result with it. */
   calculate(id: string, user: TAuthenticatedUserType) {
     return asyncFn(async () => {
       const project = await this.findOwnedOrAdmin(id, user);
       if (!project) return notFound(id);
 
-      // The stored input was validated when saved, but the schema may have
-      // moved on since; validating again keeps a stale project from
-      // reaching the engine as garbage.
-      const parsed = parseSplitInput(project.method, project.input);
-      if (!parsed.ok) return badRequest(parsed.messages);
+      const evaluated = await this.evaluate(project, user);
+      if (!evaluated.ok) return evaluated.response;
 
-      const wires = new Map<string, CatalogWire>();
-      for (const wireId of wireIdsOf(parsed.project)) {
-        const wire = await this.groundWiresService.findOwnedOrAdmin(wireId, user);
-        if (!wire) {
-          return badRequest(
-            'سیم گاردی که در این پروژه استفاده شده در کاتالوگ وجود ندارد (حذف شده است). سیم را دوباره انتخاب کنید.',
-          );
-        }
-        wires.set(wireId, wire);
-      }
-
-      let outcome;
-      try {
-        outcome = runSplitProject(parsed.project, wires);
-      } catch (error) {
-        return badRequest(
-          `محاسبه با این داده‌ها ممکن نیست: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-
+      const { outcome } = evaluated;
       project.lastResult = {
         splitFactor: outcome.splitFactor,
         computedAt: new Date().toISOString(),
-        details: outcome.details,
+        details: { ...outcome.details, warnings: outcome.warnings },
       };
-      const saved = await this.splitProjectRepository.save(project);
 
       return {
         statusCode: HttpStatus.OK,
         messages: 'محاسبه انجام شد.',
-        data: saved,
+        data: await this.splitProjectRepository.save(project),
+      };
+    });
+  }
+
+  /**
+   * The project's report as a PDF, from a fresh calculation on its
+   * stored input (nothing is saved), so it never shows a stale result.
+   */
+  getReportFile(id: string, user: TAuthenticatedUserType) {
+    return asyncFn(async () => {
+      const project = await this.findOwnedOrAdmin(id, user);
+      if (!project) return notFound(id);
+
+      const evaluated = await this.evaluate(project, user);
+      if (!evaluated.ok) return evaluated.response;
+
+      const buffer = await buildSplitReportPdf({
+        projectName: project.name,
+        project: evaluated.parsed,
+        outcome: evaluated.outcome,
+        wireNames: evaluated.wireNames,
+        generatedAt: new Date().toISOString(),
+      });
+
+      return {
+        statusCode: HttpStatus.OK,
+        messages: [],
+        data: {
+          buffer,
+          fileName: `ضریب تقسیم - ${project.name}.pdf`.replace(/[\\/:*?"<>|]/g, '_'),
+        },
       };
     });
   }
