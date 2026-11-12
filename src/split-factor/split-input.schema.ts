@@ -1,4 +1,5 @@
 import { ieee80CalculateSchema } from './dto/ieee80-calculate.dto';
+import { ramezaniCalculateSchema } from './dto/ramezani-calculate.dto';
 import { soniCalculateSchema } from './dto/soni-calculate.dto';
 import type { SplitProjectInput } from './split-project.runner';
 import type { SplitMethod } from './split-method';
@@ -18,6 +19,16 @@ export function parseSplitInput(
 ): ParsedSplitInput {
   if (method === 'SONI') {
     const parsed = soniCalculateSchema.safeParse(raw);
+    return parsed.success
+      ? { ok: true, project: { method, input: parsed.data } }
+      : {
+          ok: false,
+          messages: parsed.error.issues.map((issue) => issue.message),
+        };
+  }
+
+  if (method === 'RAMEZANI') {
+    const parsed = ramezaniCalculateSchema.safeParse(raw);
     return parsed.success
       ? { ok: true, project: { method, input: parsed.data } }
       : {

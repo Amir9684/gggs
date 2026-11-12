@@ -4,8 +4,11 @@ import {
   computeIeee80SplitFactor,
   type Ieee80Input,
 } from './engine/ieee80-split-factor.engine';
+import { computeRamezaniSplitFactor } from './engine/ramezani.engine';
 import { computeSoniSplitFactor } from './engine/soni.engine';
+import type { RamezaniCalculateInput } from './dto/ramezani-calculate.dto';
 import type { SoniCalculateInput } from './dto/soni-calculate.dto';
+import { buildRamezaniInput, ramezaniWireIds } from './ramezani-input.builder';
 import {
   buildSoniInput,
   requestedWireIds,
@@ -31,7 +34,12 @@ const polar = (value: Complex): ComplexValue => ({
 /** The validated input of a saved project, tagged by its method. */
 export type SplitProjectInput =
   | { method: 'SONI'; input: SoniCalculateInput }
-  | { method: 'IEEE80'; input: Ieee80Input };
+  | { method: 'IEEE80'; input: Ieee80Input }
+  | { method: 'RAMEZANI'; input: RamezaniCalculateInput };
+
+/** Shown when a computed split factor is above 100 %. */
+const SPLIT_FACTOR_ABOVE_100 =
+  'ضریب تقسیم بیشتر از ۱۰۰٪ شد؛ این یعنی جریان واردشده به شبکه از جریان خطا بیشتر است. مقدار امپدانس متقابل و امپدانس سیم گارد را بررسی کنید.';
 
 /** Soni results worth keeping and printing next to the split factor. */
 export type SoniRunDetails = {
@@ -48,18 +56,37 @@ export type SoniRunDetails = {
 
 export type Ieee80RunDetails = { clamped: 'LOW' | 'HIGH' | null };
 
+/** Ramezani results worth keeping and printing next to the split factor. */
+export type RamezaniRunDetails = {
+  gridCurrent: ComplexValue;
+  totalFaultCurrent: ComplexValue;
+  terminals: Array<{
+    name: string | null;
+    groundWireImpedance: ComplexValue;
+    equivalentImpedance: ComplexValue;
+    voltageCoefficient: ComplexValue;
+    mutualFactor: ComplexValue;
+    earthCurrent: ComplexValue;
+    spanCount: number;
+    /** Total line length (km). */
+    lineLength: number;
+  }>;
+};
+
 export interface SplitRunOutcome {
   /** Percent of the fault current that flows into the grid. */
   splitFactor: number;
   /** Things to check although a number was produced (Persian). */
   warnings: string[];
   /** Method-specific numbers worth keeping next to the split factor. */
-  details: SoniRunDetails | Ieee80RunDetails;
+  details: SoniRunDetails | Ieee80RunDetails | RamezaniRunDetails;
 }
 
 /** Catalog wire ids a project needs (none for the IEEE 80 curves method). */
 export function wireIdsOf(project: SplitProjectInput): string[] {
-  return project.method === 'SONI' ? requestedWireIds(project.input) : [];
+  if (project.method === 'SONI') return requestedWireIds(project.input);
+  if (project.method === 'RAMEZANI') return ramezaniWireIds(project.input);
+  return [];
 }
 
 /**
@@ -89,6 +116,37 @@ export function runSplitProject(
     };
   }
 
+  if (project.method === 'RAMEZANI') {
+    const ramezaniInput = buildRamezaniInput(project.input, wires);
+    const result = computeRamezaniSplitFactor(ramezaniInput);
+
+    if (result.splitFactor > 100) {
+      warnings.push(SPLIT_FACTOR_ABOVE_100);
+    }
+
+    return {
+      splitFactor: result.splitFactor,
+      warnings,
+      details: {
+        gridCurrent: polar(result.gridCurrent),
+        totalFaultCurrent: polar(result.totalFaultCurrent),
+        terminals: project.input.terminals.map((terminal, i) => ({
+          name: terminal.name ?? null,
+          groundWireImpedance: polar(
+            ramezaniInput.terminals[i].groundWireImpedance,
+          ),
+          equivalentImpedance: polar(result.equivalentImpedances[i]),
+          voltageCoefficient: polar(result.voltageCoefficients[i]),
+          mutualFactor: polar(result.mutualFactors[i]),
+          earthCurrent: polar(result.terminalEarthCurrents[i]),
+          spanCount: terminal.spans.length,
+          lineLength:
+            terminal.spans.reduce((sum, span) => sum + span.length, 0) / 1000,
+        })),
+      },
+    };
+  }
+
   const soniInput = buildSoniInput(project.input, wires);
   const result = computeSoniSplitFactor(soniInput);
 
@@ -96,9 +154,7 @@ export function runSplitProject(
   // be true, so it never warned. A split factor above 100 % (more current
   // into the grid than the fault supplies) points at wrong input.
   if (result.splitFactor > 100) {
-    warnings.push(
-      'ضریب تقسیم بیشتر از ۱۰۰٪ شد؛ این یعنی جریان واردشده به شبکه از جریان خطا بیشتر است. مقدار امپدانس متقابل و امپدانس سیم گارد را بررسی کنید.',
-    );
+    warnings.push(SPLIT_FACTOR_ABOVE_100);
   }
 
   return {

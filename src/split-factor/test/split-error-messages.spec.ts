@@ -1,6 +1,10 @@
 import { complex } from '../engine/complex';
 import { computeGroundWireImpedance } from '../engine/ground-wire-impedance.engine';
 import { computeIeee80SplitFactor } from '../engine/ieee80-split-factor.engine';
+import {
+  computeRamezaniSplitFactor,
+  ladderImpedance,
+} from '../engine/ramezani.engine';
 import { computeSoniSplitFactor } from '../engine/soni.engine';
 import { describeSplitError } from '../split-error-messages';
 
@@ -111,6 +115,28 @@ describe('describeSplitError', () => {
         }),
       ),
     ).toContain('عدد صحیح');
+  });
+
+  it('translates the Ramezani engine errors', () => {
+    expect(messageOf(() => ladderImpedance([], complex(0.55, 0.9)))).toContain(
+      'حداقل یک span',
+    );
+    expect(
+      messageOf(() =>
+        computeRamezaniSplitFactor({
+          gridResistance: 0.3,
+          terminals: [
+            {
+              faultCurrent: complex(400, -500),
+              groundWireImpedance: complex(0.55, 0.9),
+              mutualImpedance: complex(0, 0),
+              spans: [{ length: 300, towerFootingResistance: 10 }],
+              groundWireFraction: 1.5,
+            },
+          ],
+        }),
+      ),
+    ).toContain('نسبت طول خط');
   });
 
   it('describes a singular system and a division by zero', () => {

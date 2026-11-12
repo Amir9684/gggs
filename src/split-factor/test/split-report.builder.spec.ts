@@ -2,7 +2,10 @@ import {
   buildSplitReportPdf,
   type SplitReportData,
 } from '../pdf/split-report.builder';
-import type { SoniRunDetails } from '../split-project.runner';
+import type {
+  RamezaniRunDetails,
+  SoniRunDetails,
+} from '../split-project.runner';
 
 /**
  * Every string the builder draws. `jest.mock` factories may only close
@@ -150,6 +153,54 @@ const ieee80Data = (
   ...overrides,
 });
 
+const ramezaniDetails: RamezaniRunDetails = {
+  gridCurrent: polar(300, -400),
+  totalFaultCurrent: polar(400, -500),
+  terminals: [
+    {
+      name: 'T1',
+      groundWireImpedance: polar(0.55, 0.9),
+      equivalentImpedance: polar(3, 2),
+      voltageCoefficient: polar(-0.2, 0.01),
+      mutualFactor: polar(0.1, 0.1),
+      earthCurrent: polar(100, -100),
+      spanCount: 10,
+      lineLength: 3,
+    },
+  ],
+};
+
+const ramezaniData = (
+  overrides: Partial<SplitReportData> = {},
+): SplitReportData => ({
+  projectName: 'پست غرب',
+  project: {
+    method: 'RAMEZANI',
+    input: {
+      gridResistance: 0.3,
+      frequency: 50,
+      groundFaultCurrent: { re: 0, im: 0 },
+      terminals: [
+        {
+          name: 'T1',
+          faultCurrent: { re: 400, im: -500 },
+          groundWire: { source: 'DIRECT', impedance: { re: 0.55, im: 0.9 } },
+          mutualImpedance: { re: 0.05, im: 0.38 },
+          spans: [
+            { length: 300, towerFootingResistance: 8 },
+            { length: 300, towerFootingResistance: 15 },
+          ],
+          groundWireFraction: 1,
+        },
+      ],
+    },
+  },
+  outcome: { splitFactor: 61.5, warnings: [], details: ramezaniDetails },
+  wireNames: {},
+  generatedAt: '2026-10-30T10:00:00.000Z',
+  ...overrides,
+});
+
 const has = (needle: string) => mockTexts.some((text) => text.includes(needle));
 
 async function build(data: SplitReportData): Promise<Buffer> {
@@ -193,6 +244,31 @@ describe('buildSplitReportPdf', () => {
 
     expect(has('ورود مستقیم امپدانس')).toBe(true);
     expect(has('ACSR Hawk')).toBe(false);
+  });
+
+  it('prints a Ramezani report: spans, ladder method and the Ze / Ke table', async () => {
+    const buffer = await build(ramezaniData());
+
+    expect(buffer.length).toBeGreaterThan(0);
+    expect(has('روش تحلیلی (Ramezani)')).toBe(true);
+    expect(has('داخل پست')).toBe(true);
+    expect(has('تعداد span')).toBe(true);
+    expect(has('\u2013')).toBe(true);
+    expect(has('روش محاسبه (Ramezani)')).toBe(true);
+    expect(has('Zm = Zgm · Ze / Zgw')).toBe(true);
+    expect(has('Ke (\u2126)')).toBe(true);
+    expect(has('61.50 %')).toBe(true);
+    expect(has('روش محاسبه (Soni)')).toBe(false);
+  });
+
+  it('prints the vicinity fault current in a Ramezani report', async () => {
+    const data = ramezaniData();
+    if (data.project.method !== 'RAMEZANI') throw new Error('unexpected');
+    data.project.input.groundFaultCurrent = { re: 2000, im: -2500 };
+    await build(data);
+
+    expect(has('در نزدیکی پست')).toBe(true);
+    expect(has('جریان کل خطا (IG)')).toBe(true);
   });
 
   it('prints the IEEE 80 report with the chosen curve inputs', async () => {

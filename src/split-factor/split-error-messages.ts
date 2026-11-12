@@ -34,6 +34,14 @@ const RULES: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
   ],
   [/at least one terminal/i, () => 'حداقل یک ترمینال لازم است.'],
   [
+    /needs at least one span/i,
+    () => 'هر ترمینال حداقل یک span (دهانه) لازم دارد.',
+  ],
+  [
+    /line fraction with ground wire/i,
+    () => 'نسبت طول خط دارای سیم گارد باید بیشتر از ۰ و حداکثر ۱۰۰٪ باشد.',
+  ],
+  [
     /total fault current must not be zero/i,
     () => 'مجموع جریان خطای ترمینال‌ها نباید صفر باشد.',
   ],

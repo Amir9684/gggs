@@ -1,5 +1,6 @@
 import { complex } from '../engine/complex';
 import { computeIeee80SplitFactor } from '../engine/ieee80-split-factor.engine';
+import { computeRamezaniSplitFactor } from '../engine/ramezani.engine';
 import { computeGroundWireImpedance } from '../engine/ground-wire-impedance.engine';
 import { computeSoniSplitFactor } from '../engine/soni.engine';
 import {
@@ -138,6 +139,120 @@ describe('runSplitProject', () => {
         new Map(),
       ),
     ).toThrow();
+  });
+});
+
+const ramezaniSpans = Array.from({ length: 10 }, () => ({
+  length: 300,
+  towerFootingResistance: 10,
+}));
+
+const ramezaniDirect: SplitProjectInput = {
+  method: 'RAMEZANI',
+  input: {
+    gridResistance: 0.3,
+    frequency: 50,
+    groundFaultCurrent: { re: 0, im: 0 },
+    terminals: [
+      {
+        name: 'T1',
+        faultCurrent: { re: 400, im: -500 },
+        groundWire: { source: 'DIRECT', impedance: { re: 0.55, im: 0.9 } },
+        mutualImpedance: { re: 0.05, im: 0.38 },
+        spans: ramezaniSpans,
+        groundWireFraction: 1,
+      },
+    ],
+  },
+};
+
+const ramezaniCatalog: SplitProjectInput = {
+  method: 'RAMEZANI',
+  input: {
+    gridResistance: 0.3,
+    frequency: 50,
+    groundFaultCurrent: { re: 0, im: 0 },
+    terminals: [
+      {
+        faultCurrent: { re: 400, im: -500 },
+        groundWire: {
+          source: 'CATALOG',
+          groundWireId: 'w1',
+          earthResistivity: 1000,
+          resistanceSource: 'AC',
+          reactanceSource: 'GMR',
+        },
+        mutualImpedance: { re: 0, im: 0 },
+        spans: ramezaniSpans,
+        groundWireFraction: 1,
+      },
+    ],
+  },
+};
+
+describe('Ramezani projects', () => {
+  it('runs the Ramezani engine and keeps per-terminal details', () => {
+    const outcome = runSplitProject(ramezaniDirect, new Map());
+
+    const expected = computeRamezaniSplitFactor({
+      gridResistance: 0.3,
+      terminals: [
+        {
+          faultCurrent: complex(400, -500),
+          groundWireImpedance: complex(0.55, 0.9),
+          mutualImpedance: complex(0.05, 0.38),
+          spans: ramezaniSpans,
+          groundWireFraction: 1,
+        },
+      ],
+    });
+    expect(outcome.splitFactor).toBeCloseTo(expected.splitFactor, 10);
+
+    const details = outcome.details as {
+      terminals: Array<{
+        name: string | null;
+        spanCount: number;
+        lineLength: number;
+        groundWireImpedance: { re: number };
+      }>;
+    };
+    expect(details.terminals[0]).toMatchObject({ name: 'T1', spanCount: 10 });
+    expect(details.terminals[0].lineLength).toBeCloseTo(3, 10);
+    expect(details.terminals[0].groundWireImpedance.re).toBe(0.55);
+  });
+
+  it('computes a catalog wire impedance and lists the wire ids', () => {
+    expect(wireIdsOf(ramezaniCatalog)).toEqual(['w1']);
+    expect(wireIdsOf(ramezaniDirect)).toEqual([]);
+
+    const outcome = runSplitProject(ramezaniCatalog, new Map([['w1', wire]]));
+    const zgw = computeGroundWireImpedance(
+      { ...wire, resistanceSource: 'AC', reactanceSource: 'GMR' },
+      1000,
+      50,
+    );
+    const details = outcome.details as {
+      terminals: Array<{ groundWireImpedance: { re: number; im: number } }>;
+    };
+
+    expect(details.terminals[0].groundWireImpedance.re).toBeCloseTo(zgw.re, 10);
+    expect(() => runSplitProject(ramezaniCatalog, new Map())).toThrow();
+  });
+
+  it('passes the vicinity fault current on to the engine', () => {
+    const inside = runSplitProject(ramezaniDirect, new Map());
+    const vicinity = runSplitProject(
+      {
+        method: 'RAMEZANI',
+        input: {
+          ...(ramezaniDirect.input as object),
+          groundFaultCurrent: { re: 2000, im: -2500 },
+        } as never,
+      },
+      new Map(),
+    );
+
+    expect(vicinity.splitFactor).not.toBeCloseTo(inside.splitFactor, 2);
   });
 });
 

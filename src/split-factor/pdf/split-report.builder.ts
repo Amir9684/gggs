@@ -17,6 +17,7 @@ import {
 import type {
   ComplexValue,
   Ieee80RunDetails,
+  RamezaniRunDetails,
   SoniRunDetails,
   SplitProjectInput,
   SplitRunOutcome,
@@ -44,6 +45,12 @@ const FOOTING_LABELS: Record<number, string> = {
   2: 'انتقال ۱۰۰ Ω و توزیع ۲۰۰ Ω',
 };
 
+const METHOD_LABELS = {
+  SONI: 'روش تقریبی (Soni)',
+  RAMEZANI: 'روش تحلیلی (Ramezani)',
+  IEEE80: 'استاندارد IEEE 80',
+} as const;
+
 const OHM = '\u2126';
 
 /** "magnitude ∠ angle°" with a unit, all Latin so it prints as one piece. */
@@ -67,12 +74,10 @@ function header(doc: Doc, data: SplitReportData): void {
       width: CONTENT_WIDTH,
       align: 'right',
     });
-  doc.text(
-    data.project.method === 'SONI' ? 'روش تقریبی (Soni)' : 'استاندارد IEEE 80',
-    PAGE_MARGIN,
-    doc.y + 2,
-    { width: CONTENT_WIDTH, align: 'right' },
-  );
+  doc.text(METHOD_LABELS[data.project.method], PAGE_MARGIN, doc.y + 2, {
+    width: CONTENT_WIDTH,
+    align: 'right',
+  });
   doc.moveDown(1);
 }
 
@@ -179,6 +184,138 @@ function soniResults(
   });
 }
 
+function ramezaniInputs(
+  doc: Doc,
+  data: SplitReportData,
+  details: RamezaniRunDetails,
+): void {
+  if (data.project.method !== 'RAMEZANI') return;
+  const { input } = data.project;
+
+  sectionTitle(doc, 'ورودی‌های اصلی');
+  row(doc, 'مقاومت شبکه زمین (Rg)', `${n(input.gridResistance, 3)} ${OHM}`);
+  row(doc, 'فرکانس', `${n(input.frequency, 0)} Hz`);
+
+  const ig = input.groundFaultCurrent;
+  const faultInside = ig.re === 0 && ig.im === 0;
+  row(doc, 'محل خطا', faultInside ? 'داخل پست' : 'در نزدیکی پست');
+  if (!faultInside) {
+    row(
+      doc,
+      'جریان کل خطا (IG)',
+      `${n(Math.hypot(ig.re, ig.im))} \u2220 ${n((Math.atan2(ig.im, ig.re) * 180) / Math.PI, 1)}\u00b0 A`,
+    );
+  }
+
+  input.terminals.forEach((terminal, index) => {
+    const detail = details.terminals[index];
+    sectionTitle(
+      doc,
+      `ترمینال ${index + 1}${terminal.name ? ` — ${terminal.name}` : ''}`,
+    );
+
+    row(
+      doc,
+      'جریان خطا (Ir)',
+      `${n(Math.hypot(terminal.faultCurrent.re, terminal.faultCurrent.im))} \u2220 ${n(
+        (Math.atan2(terminal.faultCurrent.im, terminal.faultCurrent.re) * 180) /
+          Math.PI,
+        1,
+      )}\u00b0 A`,
+    );
+    row(doc, 'تعداد span', n(detail.spanCount, 0));
+    row(doc, 'طول کل خط', `${n(detail.lineLength, 3)} km`);
+
+    const footings = terminal.spans.map((span) => span.towerFootingResistance);
+    const lowest = Math.min(...footings);
+    const highest = Math.max(...footings);
+    row(
+      doc,
+      'مقاومت پایه دکل‌ها',
+      lowest === highest
+        ? `${n(lowest)} ${OHM}`
+        : `${n(lowest)} \u2013 ${n(highest)} ${OHM}`,
+    );
+
+    const wire = terminal.groundWire;
+    if (wire.source === 'CATALOG') {
+      row(doc, 'سیم گارد', data.wireNames[wire.groundWireId] ?? '—');
+      row(
+        doc,
+        'مقاومت ویژه خاک (ρ)',
+        `${n(wire.earthResistivity)} ${OHM}\u00b7m`,
+      );
+    } else {
+      row(doc, 'سیم گارد', 'ورود مستقیم امپدانس');
+    }
+    row(
+      doc,
+      'امپدانس سیم گارد (Zgw)',
+      polarText(detail.groundWireImpedance, `${OHM}/km`, 3),
+    );
+    row(
+      doc,
+      'امپدانس متقابل (Zgm)',
+      `${n(terminal.mutualImpedance.re, 4)} + j${n(terminal.mutualImpedance.im, 4)} ${OHM}/km`,
+    );
+    row(
+      doc,
+      'نسبت طول خط دارای سیم گارد (Lt)',
+      `${n(terminal.groundWireFraction * 100, 0)} %`,
+    );
+  });
+}
+
+function ramezaniMethod(doc: Doc): void {
+  sectionTitle(doc, 'روش محاسبه (Ramezani)');
+  paragraph(
+    doc,
+    'هر خط به‌صورت یک نردبان از span‌های سیم گارد و مقاومت پایه دکل‌ها مدل می‌شود. از ماتریس انتقال زنجیرهٔ span‌ها، امپدانس معادل Ze و ضریب ولتاژ انتهای خط Ke به دست می‌آید و جریان برگشتی هر ترمینال از حل دستگاه معادلات.',
+  );
+  formulaBlock(doc, [
+    'span i:  [ 1 + Zg/R   Zg ]      Zg = Zgw · L / 1000',
+    '         [   1/R       1 ]',
+    'Ze = (tm11·Zl + tm12) / (tm21·Zl + tm22)      Ke = −R_last / (tm21·Zl + tm22)',
+    'Zl = Zg_last + R_last      tm = product of all spans but the last',
+    'Zm = Zgm · Ze / Zgw',
+    'A(i,i) = Rg + Ze(i)          A(i,j) = Rg   (i <> j)',
+    'B(j) = Rg · (sum(Ir) − IG) + (Zm(j) − Ke(j)) · Ir(j)      [Lt < 1: Lt · Zm(j) · Ir(j)]',
+    'A · Ie = B          Ig = IG − (sum(Ir) − sum(Ie))',
+    'Sf = |Ig / IG| · 100      (|Ig / sum(Ir)| · 100 when IG = 0)',
+  ]);
+}
+
+function ramezaniResults(
+  doc: Doc,
+  outcome: SplitRunOutcome,
+  details: RamezaniRunDetails,
+): void {
+  sectionTitle(doc, 'نتایج');
+  row(doc, 'ضریب تقسیم جریان (Sf)', `${n(outcome.splitFactor, 2)} %`);
+  row(doc, 'مجموع جریان خطا', polarText(details.totalFaultCurrent, 'A'));
+  row(doc, 'جریان وارد شبکه (Ig)', polarText(details.gridCurrent, 'A'));
+
+  paragraph(doc, 'امپدانس معادل، ضریب ولتاژ و جریان برگشتی هر ترمینال:');
+  tableRow(
+    doc,
+    [
+      { text: 'ترمینال' },
+      { text: `Ze (${OHM})` },
+      { text: `Ke (${OHM})` },
+      { text: 'Ie (A)' },
+    ],
+    { bold: true },
+  );
+  details.terminals.forEach((terminal, index) => {
+    tableRow(doc, [
+      { text: terminal.name || String(index + 1) },
+      { text: polarText(terminal.equivalentImpedance, '', 2).trim() },
+      { text: polarText(terminal.voltageCoefficient, '', 3).trim() },
+      { text: polarText(terminal.earthCurrent, '', 2).trim() },
+    ]);
+  });
+}
+
 function ieee80Sections(
   doc: Doc,
   data: SplitReportData,
@@ -243,6 +380,11 @@ export function buildSplitReportPdf(data: SplitReportData): Promise<Buffer> {
         soniInputs(doc, data, details);
         soniMethod(doc);
         soniResults(doc, data.outcome, details);
+      } else if (data.project.method === 'RAMEZANI') {
+        const details = data.outcome.details as RamezaniRunDetails;
+        ramezaniInputs(doc, data, details);
+        ramezaniMethod(doc);
+        ramezaniResults(doc, data.outcome, details);
       } else {
         ieee80Sections(doc, data, data.outcome);
       }

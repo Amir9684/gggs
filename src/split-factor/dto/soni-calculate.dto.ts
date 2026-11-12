@@ -53,5 +53,11 @@ const soniCalculateSchema = z.object({
 
 class SoniCalculateDto extends createZodDto(soniCalculateSchema) {}
 
-export { soniCalculateSchema, SoniCalculateDto };
+export {
+  soniCalculateSchema,
+  SoniCalculateDto,
+  complexSchema,
+  directWireSchema,
+  catalogWireSchema,
+};
 export type SoniCalculateInput = z.infer<typeof soniCalculateSchema>;

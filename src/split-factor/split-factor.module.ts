@@ -5,6 +5,8 @@ import { GroundWire } from './entities/ground-wire.entity';
 import { SplitProject } from './entities/split-project.entity';
 import { GroundWiresController } from './ground-wires.controller';
 import { GroundWiresService } from './ground-wires.service';
+import { RamezaniController } from './ramezani.controller';
+import { RamezaniService } from './ramezani.service';
 import { SplitFactorController } from './split-factor.controller';
 import { SplitFactorService } from './split-factor.service';
 import { SplitProjectsController } from './split-projects.controller';
@@ -16,8 +18,14 @@ import { SplitProjectsService } from './split-projects.service';
     GroundWiresController,
     SplitFactorController,
     SplitProjectsController,
+    RamezaniController,
   ],
-  providers: [GroundWiresService, SplitFactorService, SplitProjectsService],
+  providers: [
+    GroundWiresService,
+    SplitFactorService,
+    SplitProjectsService,
+    RamezaniService,
+  ],
   exports: [GroundWiresService],
 })
 export class SplitFactorModule {}
